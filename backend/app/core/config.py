@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +29,17 @@ class Settings(BaseSettings):
         default="/static/avatars/default.png",
         alias="DEFAULT_AVATAR_URL",
     )
+    jwt_cookie_name: str = Field(default="fastwatch_access_token", alias="JWT_COOKIE_NAME")
+    cookie_secure: bool = Field(default=False, alias="COOKIE_SECURE")
+    ws_session_ttl_seconds: int = Field(default=86400, alias="WS_SESSION_TTL_SECONDS")
+    internal_api_key: str = Field(default="dev-internal-key", alias="INTERNAL_API_KEY")
+    internal_api_url: str = Field(default="http://api:8000", alias="INTERNAL_API_URL")
+
+    @property
+    def cookie_secure_effective(self) -> bool:
+        if self.cookie_secure:
+            return True
+        return not self.is_development
 
     @field_validator("database_url", mode="before")
     @classmethod

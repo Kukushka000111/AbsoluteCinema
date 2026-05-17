@@ -44,6 +44,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fastwatch}:${POSTGRES_PASSWORD:-fastwatch_secret}@postgres:5432/${POSTGRES_DB:-fastwatch}
       REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     volumes:
       - ./backend:/app
     ports:
@@ -66,15 +67,31 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fastwatch}:${POSTGRES_PASSWORD:-fastwatch_secret}@postgres:5432/${POSTGRES_DB:-fastwatch}
       REDIS_URL: redis://redis:6379/0
+      INTERNAL_API_URL: http://api:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key}
     volumes:
       - ./backend:/app
     ports:
       - "${WS_PORT:-8001}:8001"
     depends_on:
+      api:
+        condition: service_started
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fastwatch-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - api
+      - ws
 
 volumes:
   postgres_data:
