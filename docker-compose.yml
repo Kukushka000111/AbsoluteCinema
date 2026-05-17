@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fastwatch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fastwatch}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fastwatch_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-fastwatch}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fastwatch} -d ${POSTGRES_DB:-fastwatch}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fastwatch-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fastwatch-api
+    restart: unless-stopped
+    command: uvicorn app.main_api:app --host 0.0.0.0 --port 8000 --reload
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fastwatch}:${POSTGRES_PASSWORD:-fastwatch_secret}@postgres:5432/${POSTGRES_DB:-fastwatch}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ws:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: fastwatch-ws
+    restart: unless-stopped
+    command: uvicorn app.main_ws:app --host 0.0.0.0 --port 8001 --reload
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fastwatch}:${POSTGRES_PASSWORD:-fastwatch_secret}@postgres:5432/${POSTGRES_DB:-fastwatch}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${WS_PORT:-8001}:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
