@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
 import type { ChatMessage, Participant, QueueItem } from "../../types/room";
 
-type Tab = "chat" | "queue" | "users";
+type Tab = "chat" | "queue" | "users" | "admin";
 
 type Props = {
   isAdmin: boolean;
@@ -20,24 +20,28 @@ type Props = {
   onKick: (targetId: string) => void;
   onBan: (targetId: string) => void;
   onGatherAll: () => void;
+  roomName?: string;
+  roomTags?: string[];
+  onUpdateRoom?: (name: string, tags: string[]) => void;
 };
 
 export default function RoomSidebar(props: Props) {
   const [tab, setTab] = useState<Tab>("chat");
+  const tabs: Tab[] = props.isAdmin ? ["chat", "queue", "users", "admin"] : ["chat", "queue", "users"];
 
   return (
     <aside className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-fastwatch-panel">
-      <div className="flex border-b border-white/10">
-        {(["chat", "queue", "users"] as Tab[]).map((t) => (
+      <div className="flex border-b border-white/10 overflow-x-auto">
+        {tabs.map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`flex-1 px-3 py-2 text-sm capitalize ${
+            className={`px-3 py-2 text-sm capitalize whitespace-nowrap ${
               tab === t ? "border-b-2 border-fastwatch-accent text-white" : "text-fastwatch-muted"
             }`}
           >
-            {t === "chat" ? "Чат" : t === "queue" ? "Очередь" : "Участники"}
+            {t === "chat" ? "Чат" : t === "queue" ? "Очередь" : t === "users" ? "Участники" : "⚙️ Админ"}
           </button>
         ))}
       </div>
@@ -46,6 +50,7 @@ export default function RoomSidebar(props: Props) {
         {tab === "chat" && <ChatTab {...props} />}
         {tab === "queue" && <QueueTab {...props} />}
         {tab === "users" && <UsersTab {...props} />}
+        {tab === "admin" && <AdminTab {...props} />}
       </div>
     </aside>
   );
@@ -264,8 +269,7 @@ function UsersTab({
             className="flex items-center justify-between rounded border border-white/10 px-2 py-1"
           >
             <span>
-              {p.display_name}{" "}
-              <span className="text-xs text-fastwatch-muted">({p.role})</span>
+              {p.display_name} <span className="text-xs text-fastwatch-muted">({p.role})</span>
             </span>
             {isAdmin && p.id !== participantId && (
               <span className="flex gap-1">
@@ -282,6 +286,67 @@ function UsersTab({
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function AdminTab({
+  roomName = "",
+  roomTags = [],
+  onUpdateRoom,
+}: Pick<Props, "roomName" | "roomTags" | "onUpdateRoom">) {
+  const [editName, setEditName] = useState(roomName);
+  const [editTags, setEditTags] = useState(roomTags.join(", "));
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    if (!onUpdateRoom) return;
+    const tags = editTags
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    onUpdateRoom(editName.trim(), tags);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  return (
+    <div className="space-y-4 text-sm">
+      <div className="rounded-lg bg-fastwatch-bg p-3">
+        <label className="block text-xs font-medium text-fastwatch-muted mb-2">Название комнаты</label>
+        <input
+          value={editName}
+          onChange={(e) => setEditName(e.target.value)}
+          className="w-full rounded border border-white/10 bg-fastwatch-panel px-3 py-2 text-sm mb-3"
+          placeholder="Введите название"
+        />
+        <label className="block text-xs font-medium text-fastwatch-muted mb-2">
+          Теги (через запятую)
+        </label>
+        <input
+          value={editTags}
+          onChange={(e) => setEditTags(e.target.value)}
+          className="w-full rounded border border-white/10 bg-fastwatch-panel px-3 py-2 text-sm mb-3"
+          placeholder="кино, музыка, аниме"
+        />
+        <button
+          type="button"
+          onClick={handleSave}
+          className={`w-full py-2 rounded font-medium transition ${
+            saved
+              ? "bg-green-600 text-white"
+              : "bg-fastwatch-accent hover:bg-fastwatch-accentDark text-white"
+          }`}
+        >
+          {saved ? "✓ Сохранено" : "💾 Сохранить"}
+        </button>
+      </div>
+
+      <div className="text-xs text-fastwatch-muted bg-fastwatch-bg p-3 rounded-lg">
+        <p className="font-medium mb-2">💡 Панель администратора</p>
+        <p>• Здесь вы можете менять название и теги комнаты</p>
+        <p className="mt-1">• Изменения будут видны всем участникам</p>
+      </div>
     </div>
   );
 }

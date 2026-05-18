@@ -5,11 +5,15 @@ export default {
     extend: {
       colors: {
         fastwatch: {
-          bg: "#0f1117",
-          panel: "#1a1d27",
-          accent: "#6366f1",
-          muted: "#94a3b8",
+          bg: "#0a0a0a",
+          panel: "#1a1a1a",
+          accent: "#ef4444",
+          accentDark: "#991b1b",
+          muted: "#808080",
         },
+      },
+      backgroundImage: {
+        "gradient-hero": "linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(0, 0, 0, 0.5) 100%)",
       },
     },
   },

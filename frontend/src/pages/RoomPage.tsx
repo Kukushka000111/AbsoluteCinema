@@ -22,6 +22,7 @@ export default function RoomPage() {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [roomName, setRoomName] = useState("");
+  const [roomTags, setRoomTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(!session);
 
   const ensureJoin = useCallback(async () => {
@@ -39,6 +40,7 @@ export default function RoomPage() {
     setSession(s);
     setPlayerState(join.player_state);
     setRoomName(join.room.name);
+    setRoomTags(join.room.tags ?? []);
     setLoading(false);
   }, [roomId, user]);
 
@@ -147,6 +149,24 @@ export default function RoomPage() {
     toast(ok ? "Ссылка приглашения скопирована" : "Ошибка копирования", ok ? "success" : "error");
   };
 
+  const handleUpdateRoom = async (newName: string, newTags: string[]) => {
+    if (!roomId || !session.isAdmin) return;
+    try {
+      const response = await apiFetch<any>(`/rooms/${roomId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: newName || "Новая комната",
+          tags: newTags,
+        }),
+      });
+      setRoomName(response.name);
+      setRoomTags(response.tags ?? []);
+      toast("Комната обновлена", "success");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Ошибка обновления", "error");
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[500px] flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
@@ -214,6 +234,9 @@ export default function RoomPage() {
                 current_time: getEffectiveTime(playerState),
               })
             }
+            roomName={roomName}
+            roomTags={roomTags}
+            onUpdateRoom={handleUpdateRoom}
           />
         </section>
       </div>
