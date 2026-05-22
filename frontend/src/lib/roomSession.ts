@@ -27,6 +27,10 @@ export function loadRoomSession(roomId: string): RoomSession | null {
   }
 }
 
+export function removeRoomSession(roomId: string) {
+  sessionStorage.removeItem(key(roomId));
+}
+
 export function updateRoomSessionPlayer(roomId: string, playerState: RoomSession["playerState"]) {
   const s = loadRoomSession(roomId);
   if (!s) return;

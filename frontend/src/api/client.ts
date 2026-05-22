@@ -51,6 +51,15 @@ export interface UserPublic {
   avatar_url: string;
 }
 
+export interface AuthAvailability {
+  username_valid: boolean;
+  username_available: boolean;
+  username_message: string | null;
+  email_valid: boolean;
+  email_available: boolean;
+  email_message: string | null;
+}
+
 export interface RoomPublic {
   id: string;
   name: string;

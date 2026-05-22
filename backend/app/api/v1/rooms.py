@@ -14,7 +14,6 @@ from app.schemas.room import (
 from app.services.ban_service import is_user_banned
 from app.services.moderation_service import ban_user_in_room
 from app.services.redis_room_service import (
-    add_participant,
     cache_banned_user,
     create_ws_session,
     get_player_state,
@@ -172,15 +171,6 @@ async def join_room(
         role = "guest"
 
     await hydrate_room_redis(redis, room_id)
-    await add_participant(
-        redis,
-        room_id,
-        participant_id,
-        display_name,
-        role=role,
-        is_guest=is_guest,
-    )
-
     player_raw = await get_player_state(redis, room_id)
     room_data = await build_room_public(room, redis)
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
 from app.core.redis_client import get_redis
 from app.services.redis_room_service import (
+    add_participant,
     get_ws_session,
     hydrate_room_redis,
     is_banned_in_redis,
@@ -37,18 +38,28 @@ async def room_websocket(websocket: WebSocket, room_id: str, token: str | None =
 
     await hydrate_room_redis(redis, room_id)
     await websocket.accept()
+    await add_participant(
+        redis,
+        room_id,
+        participant_id,
+        session["display_name"],
+        role=session["role"],
+        is_guest=bool(session.get("is_guest")),
+    )
     await manager.connect(room_id, participant_id, websocket)
 
     ctx = WsHandlerContext(session, room_id, websocket)
 
     try:
         await send_initial_state(ctx)
+        await _broadcast_participants(room_id)
         while True:
             data = await websocket.receive_json()
             await handle_message(ctx, data)
     except WebSocketDisconnect:
         pass
     finally:
-        await remove_participant(redis, room_id, participant_id)
-        await manager.disconnect(room_id, participant_id)
-        await _broadcast_participants(room_id)
+        await manager.disconnect(room_id, participant_id, websocket)
+        if not manager.has_participant(room_id, participant_id):
+            await remove_participant(redis, room_id, participant_id)
+            await _broadcast_participants(room_id)

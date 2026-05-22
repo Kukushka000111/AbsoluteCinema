@@ -150,6 +150,14 @@ async def get_online_count(redis: Redis, room_id: str) -> int:
     return await redis.scard(room_users_key(room_id))
 
 
+async def clear_all_online_participants(redis: Redis) -> None:
+    keys = []
+    async for key in redis.scan_iter(match="room:*:users"):
+        keys.append(key)
+    if keys:
+        await redis.delete(*keys)
+
+
 async def delete_room_redis(redis: Redis, room_id: str) -> None:
     keys = []
     async for key in redis.scan_iter(match=room_redis_pattern(room_id)):

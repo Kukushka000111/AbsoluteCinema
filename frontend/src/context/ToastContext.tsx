@@ -41,12 +41,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed bottom-4 right-4 z-50 flex max-w-sm flex-col gap-2"
+        className="pointer-events-none fixed left-1/2 top-3 z-50 flex w-[min(92vw,28rem)] -translate-x-1/2 flex-col gap-2"
       >
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto rounded-lg border px-4 py-3 text-sm shadow-lg ${
+            className={`pointer-events-auto rounded-lg border px-4 py-3 text-center text-sm shadow-lg ${
               t.type === "error"
                 ? "border-red-500/50 bg-red-950/90 text-red-100"
                 : t.type === "success"

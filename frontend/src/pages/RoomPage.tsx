@@ -5,7 +5,12 @@ import { useAuth } from "../context/AuthContext";
 import RoomSidebar from "../components/room/RoomSidebar";
 import SyncPlayer from "../components/room/SyncPlayer";
 import { useRoomSocket, type WsMessage } from "../hooks/useRoomSocket";
-import { loadRoomSession, saveRoomSession, updateRoomSessionPlayer } from "../lib/roomSession";
+import {
+  loadRoomSession,
+  removeRoomSession,
+  saveRoomSession,
+  updateRoomSessionPlayer,
+} from "../lib/roomSession";
 import type { ChatMessage, Participant, PlayerState, QueueItem } from "../types/room";
 import { useToast } from "../context/ToastContext";
 import { copyRoomLink } from "../lib/links";
@@ -14,7 +19,7 @@ import { getEffectiveTime } from "../types/room";
 export default function RoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [session, setSession] = useState(() => (roomId ? loadRoomSession(roomId) : null));
   const [playerState, setPlayerState] = useState<PlayerState | null>(session?.playerState ?? null);
@@ -52,6 +57,15 @@ export default function RoomPage() {
     }
     ensureJoin().catch(() => navigate("/"));
   }, [roomId, session?.wsToken, ensureJoin, navigate]);
+
+  useEffect(() => {
+    if (authLoading || !roomId || !session || session.isGuest || user) return;
+
+    removeRoomSession(roomId);
+    setSession(null);
+    setPlayerState(null);
+    navigate("/", { replace: true });
+  }, [authLoading, navigate, roomId, session, toast, user]);
 
   const handleWs = useCallback(
     (msg: WsMessage) => {

@@ -119,6 +119,7 @@ function QueueTab({
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const add = () => {
     if (!url.trim()) return;
@@ -129,12 +130,21 @@ function QueueTab({
   };
 
   const onDrop = (to: number) => {
-    if (!isAdmin || dragIdx === null || dragIdx === to) return;
+    if (!isAdmin || dragIdx === null || dragIdx === to) {
+      finishDrag();
+      return;
+    }
     const items = [...queues.main];
     const [moved] = items.splice(dragIdx, 1);
     items.splice(to, 0, moved);
     onReorderMain(items);
     setDragIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const finishDrag = () => {
+    setDragIdx(null);
+    setDragOverIdx(null);
   };
 
   return (
@@ -171,7 +181,7 @@ function QueueTab({
             </span>
           )}
         </h4>
-        <ul className="space-y-1">
+        <ul className="space-y-1" onDragLeave={() => setDragOverIdx(null)}>
           {queues.main.map((item, i) => {
             const isActive = Boolean(currentVideoUrl && item.url === currentVideoUrl);
             return (
@@ -179,13 +189,17 @@ function QueueTab({
                 key={`${item.url}-${i}`}
                 draggable={isAdmin}
                 onDragStart={() => setDragIdx(i)}
+                onDragEnter={() => isAdmin && setDragOverIdx(i)}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => onDrop(i)}
-                className={`rounded border px-2 py-1.5 ${
+                onDragEnd={finishDrag}
+                className={`rounded border px-2 py-1.5 transition ${
                   isActive
                     ? "border-fastwatch-accent bg-fastwatch-accent/10"
                     : "border-white/10 bg-fastwatch-bg"
-                }`}
+                } ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""} ${
+                  dragIdx === i ? "opacity-60" : ""
+                } ${dragOverIdx === i && dragIdx !== i ? "ring-1 ring-fastwatch-accent" : ""}`}
               >
                 <p className="truncate font-medium">
                   {i + 1}. {item.title || item.url}

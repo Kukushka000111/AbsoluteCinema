@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
 from app.core.redis_client import close_redis, get_redis, init_redis
+from app.services.redis_room_service import clear_all_online_participants
 from app.ws.pubsub_listener import start_pubsub_listener
 from app.ws.router import router as ws_router
 
@@ -15,6 +16,7 @@ _pubsub_task = None
 async def lifespan(_app: FastAPI):
     global _pubsub_task
     await init_redis()
+    await clear_all_online_participants(get_redis())
     _pubsub_task = start_pubsub_listener()
     yield
     if _pubsub_task is not None:

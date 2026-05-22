@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class RoomCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
+    name: str | None = Field(default=None, max_length=120)
     is_private: bool = False
     tags: list[str] = Field(default_factory=list, max_length=10)
 

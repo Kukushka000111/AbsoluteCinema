@@ -1,16 +1,22 @@
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.api.deps import CurrentUser, DbSession
 from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.schemas.auth import (
+    AuthAvailabilityResponse,
     AuthResponse,
     GuestSessionResponse,
     LoginRequest,
     RegisterRequest,
     UserPublic,
 )
-from app.services.auth_service import AuthError, authenticate_user, register_user
+from app.services.auth_service import (
+    AuthError,
+    authenticate_user,
+    check_registration_availability,
+    register_user,
+)
 from app.utils.slug import generate_guest_display_name, generate_guest_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -43,13 +49,23 @@ def _clear_auth_cookie(response: Response) -> None:
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, response: Response, session: DbSession) -> AuthResponse:
     try:
-        user = await register_user(session, payload.username, payload.password)
+        user = await register_user(session, payload.username, payload.email, payload.password)
     except AuthError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
 
     token = create_access_token(user.id, user.username)
     _set_auth_cookie(response, token)
     return AuthResponse(user=UserPublic.model_validate(user), message="registered")
+
+
+@router.get("/availability", response_model=AuthAvailabilityResponse)
+async def check_availability(
+    session: DbSession,
+    username: str | None = Query(default=None),
+    email: str | None = Query(default=None),
+) -> AuthAvailabilityResponse:
+    data = await check_registration_availability(session, username=username, email=email)
+    return AuthAvailabilityResponse.model_validate(data)
 
 
 @router.post("/login", response_model=AuthResponse)

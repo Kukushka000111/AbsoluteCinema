@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import func, select
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,16 +36,17 @@ async def create_room(
     redis: Redis,
     *,
     admin: User,
-    name: str,
+    name: str | None,
     is_private: bool,
     tags: list[str],
 ) -> Room:
     room_id = await _generate_unique_room_id(session)
     normalized_tags = [t.strip().lower() for t in tags if t.strip()][:10]
+    room_name = name.strip() if name and name.strip() else f"Комната {room_id}"
 
     room = Room(
         id=room_id,
-        name=name.strip(),
+        name=room_name,
         admin_id=admin.id,
         is_private=is_private,
         tags=normalized_tags,
@@ -126,9 +128,11 @@ async def list_public_rooms(
     count_stmt = select(func.count()).select_from(Room).where(Room.is_private.is_(False))
 
     if q:
-        pattern = f"%{q.strip()}%"
-        stmt = stmt.where(Room.name.ilike(pattern))
-        count_stmt = count_stmt.where(Room.name.ilike(pattern))
+        value = q.strip().lower()
+        pattern = f"%{value}%"
+        search_condition = or_(Room.name.ilike(pattern), Room.tags.contains([value]))
+        stmt = stmt.where(search_condition)
+        count_stmt = count_stmt.where(search_condition)
 
     if tag_list:
         for tag in tag_list:
