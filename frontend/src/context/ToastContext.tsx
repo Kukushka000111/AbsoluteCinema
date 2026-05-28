@@ -34,6 +34,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }, 4000);
   }, []);
 
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   const value = useMemo(() => ({ toast }), [toast]);
 
   return (
@@ -41,12 +45,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed left-1/2 top-3 z-50 flex w-[min(92vw,28rem)] -translate-x-1/2 flex-col gap-2"
+        className="pointer-events-none fixed right-4 top-24 z-50 flex w-[min(92vw,24rem)] flex-col gap-2 sm:right-6"
       >
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto rounded-lg border px-4 py-3 text-center text-sm shadow-lg ${
+            className={`pointer-events-auto flex items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg ${
               t.type === "error"
                 ? "border-red-500/50 bg-red-950/90 text-red-100"
                 : t.type === "success"
@@ -54,7 +58,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   : "border-white/20 bg-fastwatch-panel text-white"
             }`}
           >
-            {t.message}
+            <span className="min-w-0 flex-1">{t.message}</span>
+            <button
+              type="button"
+              onClick={() => dismissToast(t.id)}
+              className="shrink-0 rounded px-1 text-lg leading-none opacity-70 transition hover:bg-white/10 hover:opacity-100"
+              aria-label="Закрыть уведомление"
+            >
+              ×
+            </button>
           </div>
         ))}
       </div>
