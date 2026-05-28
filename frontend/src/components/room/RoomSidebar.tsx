@@ -92,7 +92,7 @@ function ChatTab({ chat, onSendChat }: Pick<Props, "chat" | "onSendChat">) {
 }
 
 const SUPPORTED_SOURCES_HINT =
-  "YouTube, Vimeo, Twitch, SoundCloud, Facebook, Streamable, Wistia, DailyMotion, Mixcloud, Kaltura, Vidyard, прямые ссылки .mp4 / .webm / .m3u8 (HLS).";
+  "YouTube, Rutube, Vimeo, Twitch, SoundCloud, Facebook, Streamable, Wistia, DailyMotion, Mixcloud, Kaltura, Vidyard, прямые ссылки .mp4 / .webm / .m3u8 (HLS).";
 
 function QueueTab({
   isAdmin,
@@ -153,7 +153,7 @@ function QueueTab({
         <input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://youtube.com/watch?v=..."
+          placeholder="https://rutube.ru/video/..."
           className="w-full rounded border border-white/10 bg-fastwatch-bg px-2 py-1"
         />
         <p className="text-[11px] leading-snug text-fastwatch-muted">{SUPPORTED_SOURCES_HINT}</p>

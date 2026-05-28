@@ -13,6 +13,36 @@ type Props = {
   onEnded?: () => void;
 };
 
+type RutubeMessage = {
+  type?: string;
+  data?: {
+    state?: string;
+    time?: number;
+  };
+};
+
+const RUTUBE_HOSTS = new Set(["rutube.ru", "www.rutube.ru"]);
+
+function getRutubeEmbedUrl(rawUrl: string): string | null {
+  try {
+    const parsed = new URL(rawUrl);
+    if (!RUTUBE_HOSTS.has(parsed.hostname.toLowerCase())) return null;
+
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    const isEmbed = parts[0] === "play" && parts[1] === "embed" && parts[2];
+    const isPublicVideo = (parts[0] === "video" || parts[0] === "shorts") && parts[1];
+    const isPrivateVideo = parts[0] === "video" && parts[1] === "private" && parts[2];
+    const videoId = isEmbed ? parts[2] : isPrivateVideo ? parts[2] : isPublicVideo ? parts[1] : "";
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(videoId)) return null;
+
+    const privateAccessSuffix = isPrivateVideo && parsed.search ? "/" : "";
+    return `https://rutube.ru/play/embed/${videoId}${privateAccessSuffix}${parsed.search}`;
+  } catch {
+    return null;
+  }
+}
+
 export default function SyncPlayer({
   isAdmin,
   playerState,
@@ -23,11 +53,19 @@ export default function SyncPlayer({
   onEnded,
 }: Props) {
   const playerRef = useRef<ReactPlayer>(null);
+  const rutubeRef = useRef<HTMLIFrameElement>(null);
+  const rutubeTimeRef = useRef(0);
+  const rutubeReadyRef = useRef(false);
   const [localPlaying, setLocalPlaying] = useState(playerState.is_playing);
   const [drift, setDrift] = useState(0);
   const seekingRef = useRef(false);
 
   const url = playerState.video_url || "";
+  const rutubeEmbedUrl = getRutubeEmbedUrl(url);
+
+  const sendRutubeCommand = useCallback((type: string, data: Record<string, unknown> = {}) => {
+    rutubeRef.current?.contentWindow?.postMessage(JSON.stringify({ type, data }), "https://rutube.ru");
+  }, []);
 
   useEffect(() => {
     if (isAdmin) {
@@ -36,12 +74,23 @@ export default function SyncPlayer({
   }, [isAdmin, playerState.is_playing, playerState.updated_at]);
 
   useEffect(() => {
+    rutubeTimeRef.current = 0;
+    rutubeReadyRef.current = false;
+  }, [rutubeEmbedUrl]);
+
+  useEffect(() => {
     if (isAdmin) return;
     const target = getEffectiveTime(playerState);
-    const player = playerRef.current;
-    if (!player || !url) return;
+    if (!url) return;
     seekingRef.current = true;
-    player.seekTo(target, "seconds");
+    if (rutubeEmbedUrl) {
+      sendRutubeCommand("player:setCurrentTime", { time: target });
+      sendRutubeCommand(playerState.is_playing ? "player:play" : "player:pause");
+    } else {
+      const player = playerRef.current;
+      if (!player) return;
+      player.seekTo(target, "seconds");
+    }
     setLocalPlaying(playerState.is_playing);
     setTimeout(() => {
       seekingRef.current = false;
@@ -52,17 +101,83 @@ export default function SyncPlayer({
     playerState.is_playing,
     playerState.current_time,
     playerState.video_url,
+    rutubeEmbedUrl,
+    sendRutubeCommand,
     url,
   ]);
 
   useEffect(() => {
+    if (!rutubeEmbedUrl) return;
+
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== "https://rutube.ru") return;
+
+      let message: RutubeMessage;
+      try {
+        message = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+
+      if (message.type === "player:ready") {
+        rutubeReadyRef.current = true;
+        const target = getEffectiveTime(playerState);
+        sendRutubeCommand("player:setCurrentTime", { time: target });
+        sendRutubeCommand((isAdmin ? localPlaying : playerState.is_playing) ? "player:play" : "player:pause");
+        return;
+      }
+
+      if (message.type === "player:currentTime" && typeof message.data?.time === "number") {
+        rutubeTimeRef.current = message.data.time;
+        return;
+      }
+
+      if (message.type === "player:playComplete") {
+        if (isAdmin) onEnded?.();
+        return;
+      }
+
+      if (!isAdmin || seekingRef.current || message.type !== "player:changeState") return;
+      const currentTime = rutubeTimeRef.current;
+      if (message.data?.state === "playing") {
+        setLocalPlaying(true);
+        onAdminPlay(currentTime);
+      }
+      if (message.data?.state === "paused") {
+        setLocalPlaying(false);
+        onAdminPause(currentTime);
+      }
+      if (message.data?.state === "stopped") {
+        onAdminPause(currentTime);
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [
+    isAdmin,
+    localPlaying,
+    onAdminPause,
+    onAdminPlay,
+    onEnded,
+    playerState,
+    rutubeEmbedUrl,
+    sendRutubeCommand,
+  ]);
+
+  useEffect(() => {
+    if (!isAdmin || !rutubeEmbedUrl || !rutubeReadyRef.current) return;
+    sendRutubeCommand(localPlaying ? "player:play" : "player:pause");
+  }, [isAdmin, localPlaying, rutubeEmbedUrl, sendRutubeCommand]);
+
+  useEffect(() => {
     if (isAdmin) return;
     const id = window.setInterval(() => {
-      const internal = playerRef.current?.getCurrentTime() ?? 0;
+      const internal = rutubeEmbedUrl ? rutubeTimeRef.current : playerRef.current?.getCurrentTime() ?? 0;
       setDrift(getDriftSeconds(internal, playerState));
     }, 500);
     return () => window.clearInterval(id);
-  }, [isAdmin, playerState]);
+  }, [isAdmin, playerState, rutubeEmbedUrl]);
 
   const driftColor =
     drift <= 2 ? "text-emerald-400" : "text-yellow-400";
@@ -74,7 +189,22 @@ export default function SyncPlayer({
   return (
     <div className="flex h-full flex-col">
       <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-black">
-        {url ? (
+        {rutubeEmbedUrl ? (
+          <>
+            <iframe
+              key={rutubeEmbedUrl}
+              ref={rutubeRef}
+              src={rutubeEmbedUrl}
+              title="RUTUBE video player"
+              width="100%"
+              height="100%"
+              allow="clipboard-write; autoplay; encrypted-media; fullscreen; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full border-0"
+            />
+            {!isAdmin && <div className="absolute inset-0" aria-hidden="true" />}
+          </>
+        ) : url ? (
           <ReactPlayer
             key={url}
             ref={playerRef}
@@ -121,7 +251,12 @@ export default function SyncPlayer({
               onClick={() => {
                 const t = getEffectiveTime(playerState);
                 seekingRef.current = true;
-                playerRef.current?.seekTo(t, "seconds");
+                if (rutubeEmbedUrl) {
+                  sendRutubeCommand("player:setCurrentTime", { time: t });
+                  sendRutubeCommand(playerState.is_playing ? "player:play" : "player:pause");
+                } else {
+                  playerRef.current?.seekTo(t, "seconds");
+                }
                 setLocalPlaying(playerState.is_playing);
                 setTimeout(() => {
                   seekingRef.current = false;
@@ -135,7 +270,7 @@ export default function SyncPlayer({
           </>
         )}
         {isAdmin && (
-          <span className="text-fastwatch-muted">Вы управляете воспроизведением для всех</span>
+          <span className="text-fastwatch-muted"></span>
         )}
       </div>
     </div>
