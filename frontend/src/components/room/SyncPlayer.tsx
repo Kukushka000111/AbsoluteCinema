@@ -179,8 +179,10 @@ export default function SyncPlayer({
     return () => window.clearInterval(id);
   }, [isAdmin, playerState, rutubeEmbedUrl]);
 
-  const driftColor =
-    drift <= 2 ? "text-emerald-400" : "text-yellow-400";
+  const syncButtonClass =
+    drift <= 1
+      ? "border-emerald-400/60 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/25"
+      : "border-yellow-400/60 bg-yellow-500/15 text-yellow-100 hover:bg-yellow-500/25";
 
   const handleProgress = useCallback(() => {
     if (isAdmin || seekingRef.current) return;
@@ -243,9 +245,6 @@ export default function SyncPlayer({
       <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
         {!isAdmin && (
           <>
-            <span className={driftColor}>
-              Рассинхрон: {drift.toFixed(1)} с {drift <= 2 ? "✓" : "!"}
-            </span>
             <button
               type="button"
               onClick={() => {
@@ -263,7 +262,7 @@ export default function SyncPlayer({
                 }, 300);
                 onSyncRequest?.();
               }}
-              className="rounded-lg border border-white/20 px-3 py-1 hover:bg-white/5"
+              className={`rounded-lg border px-3 py-1 transition ${syncButtonClass}`}
             >
               Синхронизироваться с админом
             </button>

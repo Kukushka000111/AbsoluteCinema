@@ -181,6 +181,8 @@ export default function RoomPage() {
     }
   };
 
+  const onlineCount = participants.length;
+
   return (
     <div className="flex h-[calc(100vh-8rem)] min-h-[500px] flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
@@ -190,9 +192,16 @@ export default function RoomPage() {
           </Link>
           <h2 className="text-xl font-semibold">{roomName || `Комната ${roomId}`}</h2>
           <p className="text-xs text-fastwatch-muted">
-            {connected ? "● Online" : "○ Переподключение..."} · {session.displayName}
+            {connected ? "👥 Online" : "○ Переподключение..."} · {session.displayName}
             {session.isAdmin ? " (админ)" : ""}
           </p>
+          <div
+            className="mt-2 inline-flex items-center gap-2 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-medium text-red-100"
+            title="Текущий онлайн комнаты"
+          >
+            <span className="h-2 w-2 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.9)]" />
+            <span>{onlineCount}</span>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
