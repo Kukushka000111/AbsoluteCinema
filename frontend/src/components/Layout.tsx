@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -10,6 +10,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [roomId, setRoomId] = useState("");
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const joinById = async (e: FormEvent) => {
     e.preventDefault();
@@ -26,9 +28,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   const handleLogout = async () => {
+    setIsUserMenuOpen(false);
     await logout();
     navigate("/", { replace: true });
   };
+
+  useEffect(() => {
+    if (!isUserMenuOpen) return;
+
+    const closeOnPointerDown = (event: PointerEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("pointerdown", closeOnPointerDown);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnPointerDown);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isUserMenuOpen]);
 
   return (
     <div className="min-h-screen bg-fastwatch-bg text-white">
@@ -72,17 +97,41 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </Link>
                   </>
                 )}
-                <span className="text-xs text-fastwatch-muted sm:text-sm">
-                  {user ? user.username : guest?.display_name ?? "Гость"}
-                </span>
-                {user && (
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="rounded-lg bg-fastwatch-accent/80 px-3 py-1.5 text-xs font-medium transition hover:bg-fastwatch-accent sm:text-sm"
-                  >
-                    Выход
-                  </button>
+                {user ? (
+                  <div ref={userMenuRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsUserMenuOpen((open) => !open)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition hover:border-fastwatch-accent/60 hover:bg-white/10 sm:text-sm"
+                      aria-haspopup="menu"
+                      aria-expanded={isUserMenuOpen}
+                    >
+                      <span>{user.username}</span>
+                      <span className={`text-[10px] text-fastwatch-muted transition ${isUserMenuOpen ? "rotate-180" : ""}`}>
+                        ▼
+                      </span>
+                    </button>
+
+                    {isUserMenuOpen && (
+                      <div
+                        role="menu"
+                        className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-lg border border-white/10 bg-fastwatch-panel py-1 shadow-xl shadow-black/30"
+                      >
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={handleLogout}
+                          className="block w-full px-3 py-2 text-left text-sm text-red-200 transition hover:bg-red-500/10 hover:text-red-100"
+                        >
+                          Выход
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs text-fastwatch-muted sm:text-sm">
+                    {guest?.display_name ?? "Гость"}
+                  </span>
                 )}
               </div>
             </div>
