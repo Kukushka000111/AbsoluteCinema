@@ -1,0 +1,62 @@
+[MASTER]
+ignore=tests,migrations,__pycache__,alembic
+ignore-paths=^tests/.*?$,^alembic/.*?$
+
+# предотвращает ложные срабатывания Pylint при работе с моделями Pydantic
+load-plugins=pylint_pydantic
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    line-too-long,
+    attribute-defined-outside-init,
+    wrong-import-position,
+    import-outside-toplevel,
+    consider-using-f-string,
+    R0801,
+
+[FORMAT]
+max-line-length=120
+
+ignore-long-lines=^\s*(# )?<?https?://\S+>?$
+
+[DESIGN]
+max-args=6
+
+max-attributes=7
+
+max-bool-expr=5
+
+max-branches=12
+
+max-locals=15
+
+max-parents=7
+
+max-public-methods=20
+
+max-returns=6
+
+max-statements=50
+
+[VARIABLES]
+additional-builtins=
+
+[TYPECHECK]
+contextmanager-decorators=contextlib.contextmanager
+
+[SPELLING]
+spelling-store-unknown-words=no
+
+[LOGGING]
+logging-format-style=new
+
+[SIMILARITIES]
+ignore-comments=yes
+
+ignore-docstrings=yes
+
+min-similarity-lines=4
