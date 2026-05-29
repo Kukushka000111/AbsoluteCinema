@@ -35,7 +35,7 @@ export interface ChatMessage {
 }
 
 export function getEffectiveTime(state: PlayerState): number {
-  if (!state.is_playing) return state.current_time;
+  if (!state.is_playing) {return state.current_time;}
   return state.current_time + (Date.now() / 1000 - state.updated_at);
 }
 

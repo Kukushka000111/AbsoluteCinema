@@ -59,18 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       try {
         const me = await refreshMe();
-        if (cancelled) return;
+        if (cancelled) {return;}
         if (!me) {
           const session = await ensureGuestSession();
-          if (!cancelled) setGuest(session);
+          if (!cancelled) {setGuest(session);}
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {setLoading(false);}
       }
     };
 
     initAuth().catch(() => {
-      if (!cancelled) setLoading(false);
+      if (!cancelled) {setLoading(false);}
     });
 
     return () => {
@@ -83,10 +83,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const syncAuth = async () => {
       const me = await refreshMe();
-      if (cancelled) return;
+      if (cancelled) {return;}
       if (!me) {
         const session = await ensureGuestSession();
-        if (!cancelled) setGuest(session);
+        if (!cancelled) {setGuest(session);}
       }
     };
 
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const onStorage = (event: StorageEvent) => {
-      if (event.key === AUTH_STORAGE_KEY) onAuthChanged();
+      if (event.key === AUTH_STORAGE_KEY) {onAuthChanged();}
     };
 
     window.addEventListener(AUTH_EVENT, onAuthChanged);
@@ -165,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  if (!ctx) {throw new Error("useAuth must be used within AuthProvider");}
   return ctx;
 }
 

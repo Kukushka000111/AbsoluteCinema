@@ -8,7 +8,7 @@ import { saveRoomSession } from "./roomSession";
 
 export async function joinRoomById(roomId: string, authenticated: boolean): Promise<void> {
   const id = roomId.trim();
-  if (!id) return;
+  if (!id) {return;}
 
   const guest = authenticated ? null : loadGuestSession() ?? (await ensureGuestSession());
   const join = await apiFetch<JoinRoomResponse>(`/rooms/${id}/join`, {

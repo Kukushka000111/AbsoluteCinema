@@ -34,7 +34,7 @@ export default function LobbyPage() {
 
   const handleCreateRoom = async (e: FormEvent) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user) {return;}
     try {
       const tags = createTags
         .split(",")

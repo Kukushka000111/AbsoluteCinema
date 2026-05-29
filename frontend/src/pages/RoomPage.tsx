@@ -31,7 +31,7 @@ export default function RoomPage() {
   const [loading, setLoading] = useState(!session);
 
   const ensureJoin = useCallback(async () => {
-    if (!roomId) return;
+    if (!roomId) {return;}
     const guest = user ? null : loadGuestSession() ?? (await ensureGuestSession());
     const join = await apiFetch<JoinRoomResponse>(`/rooms/${roomId}/join`, {
       method: "POST",
@@ -50,7 +50,7 @@ export default function RoomPage() {
   }, [roomId, user]);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId) {return;}
     if (session?.wsToken) {
       setLoading(false);
       return;
@@ -59,7 +59,7 @@ export default function RoomPage() {
   }, [roomId, session?.wsToken, ensureJoin, navigate]);
 
   useEffect(() => {
-    if (authLoading || !roomId || !session || session.isGuest || user) return;
+    if (authLoading || !roomId || !session || session.isGuest || user) {return;}
 
     removeRoomSession(roomId);
     setSession(null);
@@ -79,7 +79,7 @@ export default function RoomPage() {
       }
       if (msg.type === "ERROR") {
         const detail = (msg.payload as { detail?: string })?.detail;
-        if (detail) console.warn(detail);
+        if (detail) {console.warn(detail);}
         return;
       }
       if (msg.type === "CONNECTED") {
@@ -91,7 +91,7 @@ export default function RoomPage() {
         setPlayerState(p.player_state);
         setQueues(p.queues);
         setParticipants(p.participants);
-        if (roomId) updateRoomSessionPlayer(roomId, p.player_state);
+        if (roomId) {updateRoomSessionPlayer(roomId, p.player_state);}
         return;
       }
       if (msg.type === "PLAYER_STATE") {
@@ -103,7 +103,7 @@ export default function RoomPage() {
           updated_at: Number(p.updated_at ?? Date.now() / 1000),
         };
         setPlayerState(next);
-        if (roomId) updateRoomSessionPlayer(roomId, next);
+        if (roomId) {updateRoomSessionPlayer(roomId, next);}
         return;
       }
       if (msg.type === "QUEUE_UPDATE") {
@@ -151,20 +151,20 @@ export default function RoomPage() {
   };
 
   const playNextInQueue = () => {
-    if (!session.isAdmin || queues.main.length === 0) return;
+    if (!session.isAdmin || queues.main.length === 0) {return;}
     const idx = queues.main.findIndex((q) => q.url === playerState.video_url);
     const next = queues.main[idx + 1] ?? queues.main[0];
-    if (next && next.url !== playerState.video_url) playFromQueue(next);
+    if (next && next.url !== playerState.video_url) {playFromQueue(next);}
   };
 
   const handleCopyLink = async () => {
-    if (!roomId) return;
+    if (!roomId) {return;}
     const ok = await copyRoomLink(roomId);
     toast(ok ? "Ссылка приглашения скопирована" : "Ошибка копирования", ok ? "success" : "error");
   };
 
   const handleUpdateRoom = async (newName: string, newTags: string[]) => {
-    if (!roomId || !session.isAdmin) return;
+    if (!roomId || !session.isAdmin) {return;}
     try {
       const response = await apiFetch<any>(`/rooms/${roomId}`, {
         method: "PATCH",

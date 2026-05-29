@@ -19,7 +19,7 @@ export function saveRoomSession(roomId: string, join: JoinRoomResponse): RoomSes
 
 export function loadRoomSession(roomId: string): RoomSession | null {
   const raw = sessionStorage.getItem(key(roomId));
-  if (!raw) return null;
+  if (!raw) {return null;}
   try {
     return JSON.parse(raw) as RoomSession;
   } catch {
@@ -33,7 +33,7 @@ export function removeRoomSession(roomId: string) {
 
 export function updateRoomSessionPlayer(roomId: string, playerState: RoomSession["playerState"]) {
   const s = loadRoomSession(roomId);
-  if (!s) return;
+  if (!s) {return;}
   s.playerState = playerState;
   sessionStorage.setItem(key(roomId), JSON.stringify(s));
 }

@@ -28,10 +28,9 @@ export function useRoomSocket(
   }, []);
 
   useEffect(() => {
-    if (!roomId || !wsToken) return;
+    if (!roomId || !wsToken) {return;}
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // Единый путь /ws/rooms/... — nginx ( :3000 ) и Vite proxy ( :5173 ) проксируют на ws:8001
     const url = `${protocol}//${window.location.host}/ws/rooms/${roomId}?token=${encodeURIComponent(wsToken)}`;
     const ws = new WebSocket(url);
     wsRef.current = ws;

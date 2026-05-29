@@ -16,7 +16,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const joinById = async (e: FormEvent) => {
     e.preventDefault();
     const id = roomId.trim();
-    if (!id) return;
+    if (!id) {return;}
 
     try {
       await joinRoomById(id, Boolean(user));
@@ -34,7 +34,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (!isUserMenuOpen) return;
+    if (!isUserMenuOpen) {return;}
 
     const closeOnPointerDown = (event: PointerEvent) => {
       if (!userMenuRef.current?.contains(event.target as Node)) {

@@ -15,7 +15,7 @@ export default function RoomHistoryPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!roomId) return;
+    if (!roomId) {return;}
     apiFetch<HistoryItem[]>(`/rooms/${roomId}/history`)
       .then(setItems)
       .catch((e: Error) => setError(e.message));

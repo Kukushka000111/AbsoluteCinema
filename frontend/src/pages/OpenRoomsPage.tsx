@@ -16,7 +16,7 @@ export default function OpenRoomsPage() {
 
   const loadRooms = useCallback(async (q = "") => {
     const params = new URLSearchParams();
-    if (q.trim()) params.set("q", q.trim());
+    if (q.trim()) {params.set("q", q.trim());}
     const data = await apiFetch<LobbyListResponse>(`/lobby/rooms?${params}`);
     setRooms(data.items);
   }, []);

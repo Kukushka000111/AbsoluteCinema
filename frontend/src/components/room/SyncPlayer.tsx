@@ -26,7 +26,7 @@ const RUTUBE_HOSTS = new Set(["rutube.ru", "www.rutube.ru"]);
 function getRutubeEmbedUrl(rawUrl: string): string | null {
   try {
     const parsed = new URL(rawUrl);
-    if (!RUTUBE_HOSTS.has(parsed.hostname.toLowerCase())) return null;
+    if (!RUTUBE_HOSTS.has(parsed.hostname.toLowerCase())) {return null;}
 
     const parts = parsed.pathname.split("/").filter(Boolean);
     const isEmbed = parts[0] === "play" && parts[1] === "embed" && parts[2];
@@ -34,7 +34,7 @@ function getRutubeEmbedUrl(rawUrl: string): string | null {
     const isPrivateVideo = parts[0] === "video" && parts[1] === "private" && parts[2];
     const videoId = isEmbed ? parts[2] : isPrivateVideo ? parts[2] : isPublicVideo ? parts[1] : "";
 
-    if (!/^[a-zA-Z0-9_-]+$/.test(videoId)) return null;
+    if (!/^[a-zA-Z0-9_-]+$/.test(videoId)) {return null;}
 
     const privateAccessSuffix = isPrivateVideo && parsed.search ? "/" : "";
     return `https://rutube.ru/play/embed/${videoId}${privateAccessSuffix}${parsed.search}`;
@@ -79,16 +79,16 @@ export default function SyncPlayer({
   }, [rutubeEmbedUrl]);
 
   useEffect(() => {
-    if (isAdmin) return;
+    if (isAdmin) {return;}
     const target = getEffectiveTime(playerState);
-    if (!url) return;
+    if (!url) {return;}
     seekingRef.current = true;
     if (rutubeEmbedUrl) {
       sendRutubeCommand("player:setCurrentTime", { time: target });
       sendRutubeCommand(playerState.is_playing ? "player:play" : "player:pause");
     } else {
       const player = playerRef.current;
-      if (!player) return;
+      if (!player) {return;}
       player.seekTo(target, "seconds");
     }
     setLocalPlaying(playerState.is_playing);
@@ -107,10 +107,10 @@ export default function SyncPlayer({
   ]);
 
   useEffect(() => {
-    if (!rutubeEmbedUrl) return;
+    if (!rutubeEmbedUrl) {return;}
 
     const onMessage = (event: MessageEvent) => {
-      if (event.origin !== "https://rutube.ru") return;
+      if (event.origin !== "https://rutube.ru") {return;}
 
       let message: RutubeMessage;
       try {
@@ -133,11 +133,11 @@ export default function SyncPlayer({
       }
 
       if (message.type === "player:playComplete") {
-        if (isAdmin) onEnded?.();
+        if (isAdmin) {onEnded?.();}
         return;
       }
 
-      if (!isAdmin || seekingRef.current || message.type !== "player:changeState") return;
+      if (!isAdmin || seekingRef.current || message.type !== "player:changeState") {return;}
       const currentTime = rutubeTimeRef.current;
       if (message.data?.state === "playing") {
         setLocalPlaying(true);
@@ -166,12 +166,12 @@ export default function SyncPlayer({
   ]);
 
   useEffect(() => {
-    if (!isAdmin || !rutubeEmbedUrl || !rutubeReadyRef.current) return;
+    if (!isAdmin || !rutubeEmbedUrl || !rutubeReadyRef.current) {return;}
     sendRutubeCommand(localPlaying ? "player:play" : "player:pause");
   }, [isAdmin, localPlaying, rutubeEmbedUrl, sendRutubeCommand]);
 
   useEffect(() => {
-    if (isAdmin) return;
+    if (isAdmin) {return;}
     const id = window.setInterval(() => {
       const internal = rutubeEmbedUrl ? rutubeTimeRef.current : playerRef.current?.getCurrentTime() ?? 0;
       setDrift(getDriftSeconds(internal, playerState));
@@ -185,7 +185,7 @@ export default function SyncPlayer({
       : "border-yellow-400/60 bg-yellow-500/15 text-yellow-100 hover:bg-yellow-500/25";
 
   const handleProgress = useCallback(() => {
-    if (isAdmin || seekingRef.current) return;
+    if (isAdmin || seekingRef.current) {return;}
   }, [isAdmin]);
 
   return (
@@ -216,22 +216,22 @@ export default function SyncPlayer({
             playing={isAdmin ? localPlaying : playerState.is_playing}
             controls={isAdmin}
             onPlay={() => {
-              if (!isAdmin) return;
+              if (!isAdmin) {return;}
               setLocalPlaying(true);
               onAdminPlay(playerRef.current?.getCurrentTime() ?? 0);
             }}
             onPause={() => {
-              if (!isAdmin) return;
+              if (!isAdmin) {return;}
               setLocalPlaying(false);
               onAdminPause(playerRef.current?.getCurrentTime() ?? 0);
             }}
             onSeek={(t) => {
-              if (!isAdmin) return;
+              if (!isAdmin) {return;}
               onAdminSeek(t);
             }}
             onProgress={handleProgress}
             onEnded={() => {
-              if (isAdmin) onEnded?.();
+              if (isAdmin) {onEnded?.();}
             }}
             config={{ youtube: { playerVars: { modestbranding: 1 } } }}
           />

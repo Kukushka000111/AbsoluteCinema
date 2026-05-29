@@ -61,7 +61,7 @@ function ChatTab({ chat, onSendChat }: Pick<Props, "chat" | "onSendChat">) {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    if (!text.trim()) {return;}
     onSendChat(text.trim());
     setText("");
   };
@@ -122,9 +122,9 @@ function QueueTab({
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const add = () => {
-    if (!url.trim()) return;
-    if (isAdmin) onAddMain(url.trim(), title.trim());
-    else onAddSugg(url.trim(), title.trim());
+    if (!url.trim()) {return;}
+    if (isAdmin) {onAddMain(url.trim(), title.trim());}
+    else {onAddSugg(url.trim(), title.trim());}
     setUrl("");
     setTitle("");
   };
@@ -314,7 +314,7 @@ function AdminTab({
   const [saved, setSaved] = useState(false);
 
   const handleSave = () => {
-    if (!onUpdateRoom) return;
+    if (!onUpdateRoom) {return;}
     const tags = editTags
       .split(",")
       .map((t) => t.trim().toLowerCase())

@@ -13,8 +13,8 @@ export class ApiError extends Error {
 async function parseError(res: Response): Promise<string> {
   try {
     const data = await res.json();
-    if (typeof data?.detail === "string") return data.detail;
-    if (Array.isArray(data?.detail)) return data.detail[0]?.msg ?? res.statusText;
+    if (typeof data?.detail === "string") {return data.detail;}
+    if (Array.isArray(data?.detail)) {return data.detail[0]?.msg ?? res.statusText;}
   } catch {
     /* ignore */
   }
@@ -104,7 +104,7 @@ const GUEST_STORAGE_KEY = "fastwatch_guest";
 
 export function loadGuestSession(): GuestSession | null {
   const raw = localStorage.getItem(GUEST_STORAGE_KEY);
-  if (!raw) return null;
+  if (!raw) {return null;}
   try {
     return JSON.parse(raw) as GuestSession;
   } catch {
@@ -118,7 +118,7 @@ export function saveGuestSession(session: GuestSession): void {
 
 export async function ensureGuestSession(): Promise<GuestSession> {
   const existing = loadGuestSession();
-  if (existing) return existing;
+  if (existing) {return existing;}
   const session = await apiFetch<GuestSession>("/auth/guest", { method: "POST" });
   saveGuestSession(session);
   return session;

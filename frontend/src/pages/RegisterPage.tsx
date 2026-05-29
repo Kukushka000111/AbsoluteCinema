@@ -22,16 +22,16 @@ export default function RegisterPage() {
 
   const usernameLocalError = useMemo(() => {
     const value = username.trim();
-    if (!value) return null;
-    if (value.length < 3) return "Минимум 3 символа";
-    if (!USERNAME_RE.test(value)) return "Только латиница, цифры и _";
+    if (!value) {return null;}
+    if (value.length < 3) {return "Минимум 3 символа";}
+    if (!USERNAME_RE.test(value)) {return "Только латиница, цифры и _";}
     return null;
   }, [username]);
 
   const emailLocalError = useMemo(() => {
     const value = email.trim();
-    if (!value) return null;
-    if (!EMAIL_RE.test(value)) return "Некорректная почта";
+    if (!value) {return null;}
+    if (!EMAIL_RE.test(value)) {return "Некорректная почта";}
     return null;
   }, [email]);
 
@@ -40,13 +40,13 @@ export default function RegisterPage() {
     const emailReady = email.trim() && !emailLocalError;
 
     setAvailability(null);
-    if (!usernameReady && !emailReady) return;
+    if (!usernameReady && !emailReady) {return;}
 
     const controller = new AbortController();
     const timer = window.setTimeout(() => {
       const params = new URLSearchParams();
-      if (usernameReady) params.set("username", username.trim());
-      if (emailReady) params.set("email", email.trim());
+      if (usernameReady) {params.set("username", username.trim());}
+      if (emailReady) {params.set("email", email.trim());}
 
       setChecking(true);
       apiFetch<AuthAvailability>(`/auth/availability?${params}`, {
@@ -59,7 +59,7 @@ export default function RegisterPage() {
           }
         })
         .finally(() => {
-          if (!controller.signal.aborted) setChecking(false);
+          if (!controller.signal.aborted) {setChecking(false);}
         });
     }, 250);
 
@@ -91,7 +91,7 @@ export default function RegisterPage() {
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit) {return;}
     setError(null);
     setLoading(true);
     try {
