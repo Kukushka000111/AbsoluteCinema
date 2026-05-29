@@ -8,7 +8,6 @@ from app.core.config import get_settings
 from app.core.security import hash_password, verify_password
 from app.models.user import User
 
-
 USERNAME_RE = compile_regex(r"^[a-zA-Z0-9_]+$")
 EMAIL_RE = compile_regex(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
@@ -35,7 +34,9 @@ async def register_user(
     if existing.scalar_one_or_none():
         raise AuthError("Логин уже занят", "username_taken")
 
-    existing_email = await session.execute(select(User.id).where(func.lower(User.email) == email))
+    existing_email = await session.execute(
+        select(User.id).where(func.lower(User.email) == email)
+    )
     if existing_email.scalar_one_or_none():
         raise AuthError("Почта уже занята", "email_taken")
 
@@ -91,13 +92,17 @@ async def check_registration_availability(
         elif len(value) > 50:
             result.update(username_valid=False, username_message="Максимум 50 символов")
         elif not USERNAME_RE.match(value):
-            result.update(username_valid=False, username_message="Только латиница, цифры и _")
+            result.update(
+                username_valid=False, username_message="Только латиница, цифры и _"
+            )
         else:
             existing = await session.execute(
                 select(User.id).where(func.lower(User.username) == value.lower())
             )
             if existing.scalar_one_or_none():
-                result.update(username_available=False, username_message="Логин уже занят")
+                result.update(
+                    username_available=False, username_message="Логин уже занят"
+                )
 
     if email is not None:
         value = email.strip().lower()
@@ -106,7 +111,9 @@ async def check_registration_availability(
         elif not EMAIL_RE.match(value):
             result.update(email_valid=False, email_message="Некорректная почта")
         else:
-            existing = await session.execute(select(User.id).where(func.lower(User.email) == value))
+            existing = await session.execute(
+                select(User.id).where(func.lower(User.email) == value)
+            )
             if existing.scalar_one_or_none():
                 result.update(email_available=False, email_message="Почта уже занята")
 

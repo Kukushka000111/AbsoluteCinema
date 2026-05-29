@@ -20,19 +20,27 @@ router = APIRouter()
 
 
 @router.websocket("/ws/rooms/{room_id}")
-async def room_websocket(websocket: WebSocket, room_id: str, token: str | None = None) -> None:
+async def room_websocket(
+    websocket: WebSocket, room_id: str, token: str | None = None
+) -> None:
     if not token:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="missing_token")
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="missing_token"
+        )
         return
 
     redis = get_redis()
     session = await get_ws_session(redis, token)
     if session is None or session.get("room_id") != room_id:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="invalid_token")
+        await websocket.close(
+            code=status.WS_1008_POLICY_VIOLATION, reason="invalid_token"
+        )
         return
 
     participant_id = session["participant_id"]
-    if not session.get("is_guest") and await is_banned_in_redis(redis, room_id, participant_id):
+    if not session.get("is_guest") and await is_banned_in_redis(
+        redis, room_id, participant_id
+    ):
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="banned")
         return
 

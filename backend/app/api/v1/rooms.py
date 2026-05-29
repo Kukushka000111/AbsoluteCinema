@@ -154,7 +154,10 @@ async def join_room(
     if auth.user is not None:
         if await is_user_banned(session, room_id, auth.user.id):
             await cache_banned_user(redis, room_id, str(auth.user.id))
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Вы забанены в этой комнате")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Вы забанены в этой комнате",
+            )
 
         participant_id = str(auth.user.id)
         display_name = auth.user.username

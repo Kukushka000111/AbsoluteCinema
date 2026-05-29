@@ -24,7 +24,9 @@ async def ban_user_in_room(
         if admin_id is None or room.admin_id != admin_id:
             raise RoomError("Только админ может банить", "forbidden", 403)
 
-    user_exists = await session.execute(select(User.id).where(User.id == target_user_id))
+    user_exists = await session.execute(
+        select(User.id).where(User.id == target_user_id)
+    )
     if user_exists.scalar_one_or_none() is None:
         raise RoomError("Пользователь не найден", "not_found", 404)
 

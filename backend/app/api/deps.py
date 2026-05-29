@@ -14,6 +14,8 @@ from app.services.auth_service import get_user_by_id
 from redis.asyncio import Redis
 
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
+
+
 async def get_redis_dep() -> Redis:
     return _get_redis()
 

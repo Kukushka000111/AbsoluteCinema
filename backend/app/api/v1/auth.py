@@ -46,12 +46,20 @@ def _clear_auth_cookie(response: Response) -> None:
     )
 
 
-@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest, response: Response, session: DbSession) -> AuthResponse:
+@router.post(
+    "/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+)
+async def register(
+    payload: RegisterRequest, response: Response, session: DbSession
+) -> AuthResponse:
     try:
-        user = await register_user(session, payload.username, payload.email, payload.password)
+        user = await register_user(
+            session, payload.username, payload.email, payload.password
+        )
     except AuthError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=exc.message
+        ) from exc
 
     token = create_access_token(user.id, user.username)
     _set_auth_cookie(response, token)
@@ -64,16 +72,22 @@ async def check_availability(
     username: str | None = Query(default=None),
     email: str | None = Query(default=None),
 ) -> AuthAvailabilityResponse:
-    data = await check_registration_availability(session, username=username, email=email)
+    data = await check_registration_availability(
+        session, username=username, email=email
+    )
     return AuthAvailabilityResponse.model_validate(data)
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(payload: LoginRequest, response: Response, session: DbSession) -> AuthResponse:
+async def login(
+    payload: LoginRequest, response: Response, session: DbSession
+) -> AuthResponse:
     try:
         user = await authenticate_user(session, payload.username, payload.password)
     except AuthError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message) from exc
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message
+        ) from exc
 
     token = create_access_token(user.id, user.username)
     _set_auth_cookie(response, token)

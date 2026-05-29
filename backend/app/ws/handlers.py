@@ -34,7 +34,9 @@ class WsHandlerContext:
         self.is_guest: bool = bool(session.get("is_guest"))
 
 
-async def _broadcast(room_id: str, msg_type: str, payload: dict, *, sender_id: str | None = None) -> None:
+async def _broadcast(
+    room_id: str, msg_type: str, payload: dict, *, sender_id: str | None = None
+) -> None:
     redis = get_redis()
     message = {"type": msg_type, "payload": payload, "sender_id": sender_id}
     await publish_room_event(redis, room_id, message)

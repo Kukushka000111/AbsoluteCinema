@@ -47,8 +47,12 @@ def _parse_queue_item(raw: str) -> dict[str, str]:
         return {"url": raw, "title": ""}
 
 
-async def publish_room_event(redis: Redis, room_id: str, message: dict[str, Any]) -> None:
-    await redis.publish(room_channel_key(room_id), json.dumps(message, ensure_ascii=False))
+async def publish_room_event(
+    redis: Redis, room_id: str, message: dict[str, Any]
+) -> None:
+    await redis.publish(
+        room_channel_key(room_id), json.dumps(message, ensure_ascii=False)
+    )
 
 
 async def hydrate_room_redis(redis: Redis, room_id: str) -> None:
@@ -167,7 +171,11 @@ async def delete_room_redis(redis: Redis, room_id: str) -> None:
 
 
 async def get_queue(redis: Redis, room_id: str, queue: str) -> list[dict[str, str]]:
-    key = room_queue_main_key(room_id) if queue == "main" else room_queue_sugg_key(room_id)
+    key = (
+        room_queue_main_key(room_id)
+        if queue == "main"
+        else room_queue_sugg_key(room_id)
+    )
     items = await redis.lrange(key, 0, -1)
     return [_parse_queue_item(item) for item in items]
 
@@ -186,20 +194,32 @@ async def add_to_queue(
     url: str,
     title: str | None,
 ) -> list[dict[str, str]]:
-    key = room_queue_main_key(room_id) if queue == "main" else room_queue_sugg_key(room_id)
+    key = (
+        room_queue_main_key(room_id)
+        if queue == "main"
+        else room_queue_sugg_key(room_id)
+    )
     await redis.rpush(key, _queue_item(url, title))
     return await get_queue(redis, room_id, queue)
 
 
-async def remove_from_queue(redis: Redis, room_id: str, queue: str, index: int) -> list[dict[str, str]]:
-    key = room_queue_main_key(room_id) if queue == "main" else room_queue_sugg_key(room_id)
+async def remove_from_queue(
+    redis: Redis, room_id: str, queue: str, index: int
+) -> list[dict[str, str]]:
+    key = (
+        room_queue_main_key(room_id)
+        if queue == "main"
+        else room_queue_sugg_key(room_id)
+    )
     placeholder = "__deleted__"
     await redis.lset(key, index, placeholder)
     await redis.lrem(key, 1, placeholder)
     return await get_queue(redis, room_id, queue)
 
 
-async def reorder_main_queue(redis: Redis, room_id: str, items: list[dict[str, str]]) -> list[dict[str, str]]:
+async def reorder_main_queue(
+    redis: Redis, room_id: str, items: list[dict[str, str]]
+) -> list[dict[str, str]]:
     key = room_queue_main_key(room_id)
     await redis.delete(key)
     if items:
@@ -207,7 +227,9 @@ async def reorder_main_queue(redis: Redis, room_id: str, items: list[dict[str, s
     return await get_queue(redis, room_id, "main")
 
 
-async def approve_suggestion(redis: Redis, room_id: str, index: int) -> dict[str, list[dict[str, str]]]:
+async def approve_suggestion(
+    redis: Redis, room_id: str, index: int
+) -> dict[str, list[dict[str, str]]]:
     sugg_key = room_queue_sugg_key(room_id)
     raw = await redis.lindex(sugg_key, index)
     if not raw:

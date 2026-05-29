@@ -17,7 +17,9 @@ async def list_lobby_rooms(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> LobbyListResponse:
-    tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()] if tags else None
+    tag_list = (
+        [t.strip().lower() for t in tags.split(",") if t.strip()] if tags else None
+    )
     rooms, total = await list_public_rooms(
         session,
         redis,

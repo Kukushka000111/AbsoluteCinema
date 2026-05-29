@@ -17,7 +17,9 @@ class RoomBan(Base):
     """Перманентный бан пользователя в комнате по user_id."""
 
     __tablename__ = "room_bans"
-    __table_args__ = (UniqueConstraint("room_id", "user_id", name="uq_room_bans_room_user"),)
+    __table_args__ = (
+        UniqueConstraint("room_id", "user_id", name="uq_room_bans_room_user"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

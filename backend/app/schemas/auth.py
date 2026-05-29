@@ -3,7 +3,6 @@ from re import compile as compile_regex
 
 from pydantic import BaseModel, Field, field_validator
 
-
 EMAIL_RE = compile_regex(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 

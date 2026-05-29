@@ -5,7 +5,9 @@ class ConnectionManager:
     def __init__(self) -> None:
         self._connections: dict[str, dict[str, set[WebSocket]]] = {}
 
-    async def connect(self, room_id: str, participant_id: str, websocket: WebSocket) -> None:
+    async def connect(
+        self, room_id: str, participant_id: str, websocket: WebSocket
+    ) -> None:
         room = self._connections.setdefault(room_id, {})
         room.setdefault(participant_id, set()).add(websocket)
 

@@ -10,7 +10,11 @@ from app.models.room_history import RoomHistory
 from app.models.user import User
 from redis.asyncio import Redis
 
-from app.services.redis_room_service import delete_room_redis, get_online_count, hydrate_room_redis
+from app.services.redis_room_service import (
+    delete_room_redis,
+    get_online_count,
+    hydrate_room_redis,
+)
 from app.utils.slug import generate_room_id
 
 
@@ -28,7 +32,9 @@ async def _generate_unique_room_id(session: AsyncSession) -> str:
         exists = await session.execute(select(Room.id).where(Room.id == candidate))
         if exists.scalar_one_or_none() is None:
             return candidate
-    raise RoomError("Не удалось сгенерировать id комнаты", "slug_generation_failed", 500)
+    raise RoomError(
+        "Не удалось сгенерировать id комнаты", "slug_generation_failed", 500
+    )
 
 
 async def create_room(
@@ -125,7 +131,9 @@ async def list_public_rooms(
         .where(Room.is_private.is_(False))
         .order_by(Room.created_at.desc())
     )
-    count_stmt = select(func.count()).select_from(Room).where(Room.is_private.is_(False))
+    count_stmt = (
+        select(func.count()).select_from(Room).where(Room.is_private.is_(False))
+    )
 
     if q:
         value = q.strip().lower()
