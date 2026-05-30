@@ -292,3 +292,13 @@ async def send_initial_state(ctx: WsHandlerContext) -> None:
             },
         }
     )
+
+
+async def send_sync_signal(room_id: str) -> None:
+    redis = get_redis()
+    state = await get_player_state(redis, room_id)
+    await _broadcast(
+        room_id,
+        M.PLAYER_STATE,
+        {"action": M.ACTION_GATHER_ALL, **state},
+    )

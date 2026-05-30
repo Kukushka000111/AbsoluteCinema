@@ -14,6 +14,7 @@ from app.ws.handlers import (
     _broadcast_participants,
     handle_message,
     send_initial_state,
+    send_sync_signal,
 )
 
 router = APIRouter()
@@ -61,6 +62,7 @@ async def room_websocket(
     try:
         await send_initial_state(ctx)
         await _broadcast_participants(room_id)
+        await send_sync_signal(room_id)
         while True:
             data = await websocket.receive_json()
             await handle_message(ctx, data)
