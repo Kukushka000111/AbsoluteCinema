@@ -49,6 +49,9 @@ export interface UserPublic {
   id: string;
   username: string;
   avatar_url: string;
+  is_global_admin?: boolean;
+  is_globally_banned?: boolean;
+  global_ban_reason?: string | null;
 }
 
 export interface AuthAvailability {
@@ -100,6 +103,93 @@ export interface GuestSession {
   display_name: string;
 }
 
+export type ProfileVisibility = "public" | "subscribers" | "hidden";
+
+export interface ProfileLinks {
+  telegram: string | null;
+  vk: string | null;
+  twitch: string | null;
+}
+
+export interface WatchingNow {
+  room_id: string;
+  room_name: string;
+}
+
+export interface RecentRoomVisit {
+  room_id: string;
+  room_name: string;
+  visited_at: string;
+}
+
+export interface ProfilePublic {
+  username: string;
+  avatar_url: string;
+  created_at: string;
+  bio: string | null;
+  tags: string[];
+  links: ProfileLinks;
+  profile_visibility: ProfileVisibility;
+  is_own_profile: boolean;
+  is_following: boolean;
+  is_blocked: boolean;
+  followers_count: number;
+  following_count: number;
+  can_view_full: boolean;
+  watching_now: WatchingNow | null;
+  recent_rooms: RecentRoomVisit[];
+  public_rooms: RoomPublic[];
+}
+
+export interface ProfileMe {
+  id: string;
+  username: string;
+  email: string | null;
+  avatar_url: string;
+  bio: string | null;
+  tags: string[];
+  links: ProfileLinks;
+  profile_visibility: ProfileVisibility;
+  created_at: string;
+  followers_count: number;
+  following_count: number;
+  watching_now: WatchingNow | null;
+}
+
+export interface ProfileUpdate {
+  bio?: string | null;
+  tags?: string[];
+  avatar_url?: string | null;
+  link_telegram?: string | null;
+  link_vk?: string | null;
+  link_twitch?: string | null;
+  profile_visibility?: ProfileVisibility;
+  email?: string | null;
+}
+
+export interface WatchHistoryEntry {
+  id: string;
+  room_id: string;
+  room_name: string;
+  video_url: string;
+  title: string | null;
+  started_at: string;
+}
+
+export interface GlobalBanItem {
+  user_id: string;
+  username: string;
+  reason: string | null;
+  banned_at: string;
+  banned_by_username: string | null;
+}
+
+export interface AdminRoomUpdate {
+  name?: string;
+  is_private?: boolean;
+  tags?: string[];
+}
+
 const GUEST_STORAGE_KEY = "fastwatch_guest";
 
 export function loadGuestSession(): GuestSession | null {
@@ -122,4 +212,18 @@ export async function ensureGuestSession(): Promise<GuestSession> {
   const session = await apiFetch<GuestSession>("/auth/guest", { method: "POST" });
   saveGuestSession(session);
   return session;
+}
+
+export async function uploadAvatar(file: File): Promise<ProfileMe> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/profile/me/avatar`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) {
+    throw new ApiError(await parseError(res), res.status);
+  }
+  return res.json() as Promise<ProfileMe>;
 }

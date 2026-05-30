@@ -17,6 +17,7 @@ from app.services.auth_service import (
     check_registration_availability,
     register_user,
 )
+from app.services.global_ban_service import build_user_public
 from app.utils.slug import generate_guest_display_name, generate_guest_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -63,7 +64,8 @@ async def register(
 
     token = create_access_token(user.id, user.username)
     _set_auth_cookie(response, token)
-    return AuthResponse(user=UserPublic.model_validate(user), message="registered")
+    user_data = await build_user_public(session, user)
+    return AuthResponse(user=UserPublic.model_validate(user_data), message="registered")
 
 
 @router.get("/availability", response_model=AuthAvailabilityResponse)
@@ -91,7 +93,8 @@ async def login(
 
     token = create_access_token(user.id, user.username)
     _set_auth_cookie(response, token)
-    return AuthResponse(user=UserPublic.model_validate(user), message="logged_in")
+    user_data = await build_user_public(session, user)
+    return AuthResponse(user=UserPublic.model_validate(user_data), message="logged_in")
 
 
 @router.post("/logout")
@@ -101,8 +104,9 @@ async def logout(response: Response) -> dict[str, str]:
 
 
 @router.get("/me", response_model=UserPublic)
-async def me(current_user: CurrentUser) -> UserPublic:
-    return UserPublic.model_validate(current_user)
+async def me(current_user: CurrentUser, session: DbSession) -> UserPublic:
+    user_data = await build_user_public(session, current_user)
+    return UserPublic.model_validate(user_data)
 
 
 @router.post("/guest", response_model=GuestSessionResponse)

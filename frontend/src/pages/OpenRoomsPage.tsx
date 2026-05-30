@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, type LobbyListResponse, type RoomPublic } from "../api/client";
+import RoomCard from "../components/room/RoomCard";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { joinRoomById } from "../lib/joinRoom";
-import { copyRoomLink, roomPath } from "../lib/links";
+import { roomPath } from "../lib/links";
 
 export default function OpenRoomsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query);
   const [rooms, setRooms] = useState<RoomPublic[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,10 +26,10 @@ export default function OpenRoomsPage() {
 
   useEffect(() => {
     setLoading(true);
-    loadRooms(query)
+    loadRooms(debouncedQuery)
       .catch((err: Error) => toast(err.message, "error"))
       .finally(() => setLoading(false));
-  }, [loadRooms, query, toast]);
+  }, [debouncedQuery, loadRooms, toast]);
 
   const handleJoin = async (roomId: string) => {
     try {
@@ -43,7 +46,7 @@ export default function OpenRoomsPage() {
         <Link to="/" className="text-sm text-fastwatch-accent hover:underline">
           Назад в лобби
         </Link>
-        <h1 className="mt-3 text-3xl font-bold">Открытые комнаты</h1>
+        <h1 className="mt-3 text-2xl font-bold sm:text-3xl">Открытые комнаты</h1>
         <div className="mt-5">
           <label className="mb-2 block text-sm font-medium text-fastwatch-muted">
             Найти комнату
@@ -78,58 +81,5 @@ export default function OpenRoomsPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function RoomCard({ room, onJoin }: { room: RoomPublic; onJoin: (id: string) => void }) {
-  const { toast } = useToast();
-
-  const copyLink = async () => {
-    const ok = await copyRoomLink(room.id);
-    toast(ok ? "Ссылка скопирована" : "Не удалось скопировать", ok ? "success" : "error");
-  };
-
-  return (
-    <article className="flex flex-col rounded-xl border border-white/10 bg-fastwatch-panel p-5 transition hover:border-fastwatch-accent/60 hover:bg-fastwatch-panel/80">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <h2 className="min-w-0 flex-1 truncate text-base font-semibold">{room.name}</h2>
-        {room.is_private && (
-          <span className="shrink-0 rounded-full bg-fastwatch-accent/20 px-2 py-1 text-[11px] font-medium text-fastwatch-accent">
-            Закрытая
-          </span>
-        )}
-      </div>
-      <p className="mb-3 text-xs text-fastwatch-muted">
-        {room.admin.username} · онлайн: {room.online_count}
-      </p>
-      {room.tags.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {room.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-fastwatch-accent/20 px-2.5 py-1 text-[11px] font-medium text-fastwatch-accent"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="mt-auto flex gap-2 border-t border-white/5 pt-4">
-        <button
-          type="button"
-          onClick={() => onJoin(room.id)}
-          className="flex-1 rounded-lg bg-fastwatch-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-fastwatch-accentDark"
-        >
-          Войти
-        </button>
-        <button
-          type="button"
-          onClick={copyLink}
-          className="rounded-lg border border-white/10 px-3 py-2 text-sm transition hover:bg-white/5"
-        >
-          Ссылка
-        </button>
-      </div>
-    </article>
   );
 }

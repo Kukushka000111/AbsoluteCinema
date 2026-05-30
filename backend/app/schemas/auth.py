@@ -29,6 +29,9 @@ class UserPublic(BaseModel):
     id: uuid.UUID
     username: str
     avatar_url: str
+    is_global_admin: bool = False
+    is_globally_banned: bool = False
+    global_ban_reason: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -88,7 +88,7 @@ async def update_room(
     is_private: bool | None,
     tags: list[str] | None,
 ) -> Room:
-    if room.admin_id != admin.id:
+    if room.admin_id != admin.id and not admin.is_global_admin:
         raise RoomError("Только админ может изменять комнату", "forbidden", 403)
 
     if name is not None:
@@ -109,7 +109,7 @@ async def delete_room(
     room: Room,
     admin: User,
 ) -> None:
-    if room.admin_id != admin.id:
+    if room.admin_id != admin.id and not admin.is_global_admin:
         raise RoomError("Только админ может удалить комнату", "forbidden", 403)
 
     await delete_room_redis(redis, room.id)
@@ -151,6 +151,34 @@ async def list_public_rooms(
     result = await session.execute(stmt.limit(limit).offset(offset))
     rooms = list(result.scalars().all())
 
+    return rooms, total
+
+
+async def list_all_rooms(
+    session: AsyncSession,
+    redis: Redis,
+    *,
+    q: str | None,
+    limit: int,
+    offset: int,
+) -> tuple[list[Room], int]:
+    stmt = (
+        select(Room)
+        .options(selectinload(Room.admin))
+        .order_by(Room.created_at.desc())
+    )
+    count_stmt = select(func.count()).select_from(Room)
+
+    if q:
+        value = q.strip().lower()
+        pattern = f"%{value}%"
+        search_condition = or_(Room.name.ilike(pattern), Room.tags.contains([value]))
+        stmt = stmt.where(search_condition)
+        count_stmt = count_stmt.where(search_condition)
+
+    total = (await session.execute(count_stmt)).scalar_one()
+    result = await session.execute(stmt.limit(limit).offset(offset))
+    rooms = list(result.scalars().all())
     return rooms, total
 
 

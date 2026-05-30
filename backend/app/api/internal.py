@@ -7,6 +7,7 @@ from app.api.deps import DbSession, RedisDep
 from app.core.config import get_settings
 from app.services.history_service import record_video_started
 from app.services.moderation_service import ban_user_in_room
+from app.services.profile_service import record_room_visit
 from app.services.room_service import RoomError
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -25,6 +26,10 @@ class HistoryRecordBody(BaseModel):
 
 class BanRecordBody(BaseModel):
     user_id: str
+
+
+class RoomVisitBody(BaseModel):
+    room_id: str
 
 
 @router.post("/rooms/{room_id}/history", status_code=status.HTTP_201_CREATED)
@@ -66,3 +71,20 @@ async def internal_ban_user(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     return {"id": str(ban.id), "status": "ok"}
+
+
+@router.post("/users/{user_id}/room-visits", status_code=status.HTTP_201_CREATED)
+async def internal_record_room_visit(
+    user_id: str,
+    body: RoomVisitBody,
+    session: DbSession,
+    x_internal_key: str | None = Header(default=None),
+) -> dict[str, str]:
+    _verify_internal_key(x_internal_key)
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid user_id") from exc
+
+    await record_room_visit(session, uid, body.room_id)
+    return {"status": "ok"}

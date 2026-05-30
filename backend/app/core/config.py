@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     ws_session_ttl_seconds: int = Field(default=86400, alias="WS_SESSION_TTL_SECONDS")
     internal_api_key: str = Field(default="dev-internal-key", alias="INTERNAL_API_KEY")
     internal_api_url: str = Field(default="http://api:8000", alias="INTERNAL_API_URL")
+    global_admin_usernames: str = Field(default="", alias="GLOBAL_ADMIN_USERNAMES")
 
     @property
     def cookie_secure_effective(self) -> bool:
@@ -54,6 +55,14 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         return [
             origin.strip() for origin in self.cors_origins.split(",") if origin.strip()
+        ]
+
+    @property
+    def global_admin_username_list(self) -> list[str]:
+        return [
+            username.strip()
+            for username in self.global_admin_usernames.split(",")
+            if username.strip()
         ]
 
     @property

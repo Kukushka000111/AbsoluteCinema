@@ -9,6 +9,8 @@ from app.core.config import get_settings
 from app.core.redis_keys import (
     room_banned_key,
     room_channel_key,
+    room_chat_key,
+    room_muted_key,
     room_queue_main_key,
     room_queue_sugg_key,
     room_redis_pattern,
@@ -23,16 +25,18 @@ def _participant_payload(
     display_name: str,
     role: str,
     is_guest: bool,
+    *,
+    username: str | None = None,
 ) -> str:
-    return json.dumps(
-        {
-            "id": participant_id,
-            "display_name": display_name,
-            "role": role,
-            "is_guest": is_guest,
-        },
-        ensure_ascii=False,
-    )
+    payload: dict[str, Any] = {
+        "id": participant_id,
+        "display_name": display_name,
+        "role": role,
+        "is_guest": is_guest,
+    }
+    if username:
+        payload["username"] = username
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _queue_item(url: str, title: str | None = None) -> str:
@@ -119,11 +123,18 @@ async def add_participant(
     *,
     role: str,
     is_guest: bool,
+    username: str | None = None,
 ) -> None:
     await remove_participant(redis, room_id, participant_id)
     await redis.sadd(
         room_users_key(room_id),
-        _participant_payload(participant_id, display_name, role, is_guest),
+        _participant_payload(
+            participant_id,
+            display_name,
+            role,
+            is_guest,
+            username=username,
+        ),
     )
 
 
@@ -141,13 +152,29 @@ async def remove_participant(redis: Redis, room_id: str, participant_id: str) ->
 
 async def list_participants(redis: Redis, room_id: str) -> list[dict[str, Any]]:
     members = await redis.smembers(room_users_key(room_id))
+    muted_ids = await redis.smembers(room_muted_key(room_id))
+    muted_set = {m.decode() if isinstance(m, bytes) else m for m in muted_ids}
     result: list[dict[str, Any]] = []
     for member in members:
         try:
-            result.append(json.loads(member))
+            data = json.loads(member)
+            data["is_muted"] = data.get("id") in muted_set
+            result.append(data)
         except json.JSONDecodeError:
             continue
     return result
+
+
+async def mute_participant(redis: Redis, room_id: str, participant_id: str) -> None:
+    await redis.sadd(room_muted_key(room_id), participant_id)
+
+
+async def unmute_participant(redis: Redis, room_id: str, participant_id: str) -> None:
+    await redis.srem(room_muted_key(room_id), participant_id)
+
+
+async def is_participant_muted(redis: Redis, room_id: str, participant_id: str) -> bool:
+    return bool(await redis.sismember(room_muted_key(room_id), participant_id))
 
 
 async def get_online_count(redis: Redis, room_id: str) -> int:
@@ -261,22 +288,27 @@ async def create_ws_session(
     redis: Redis,
     *,
     room_id: str,
+    room_name: str,
     participant_id: str,
     display_name: str,
     role: str,
     is_admin: bool,
     is_guest: bool,
+    username: str | None = None,
 ) -> str:
     settings = get_settings()
     token = secrets.token_urlsafe(32)
     payload = {
         "room_id": room_id,
+        "room_name": room_name,
         "participant_id": participant_id,
         "display_name": display_name,
         "role": role,
         "is_admin": is_admin,
         "is_guest": is_guest,
     }
+    if username:
+        payload["username"] = username
     await redis.set(
         ws_session_key(token),
         json.dumps(payload, ensure_ascii=False),
@@ -297,3 +329,24 @@ async def get_ws_session(redis: Redis, token: str) -> dict[str, Any] | None:
 
 async def delete_ws_session(redis: Redis, token: str) -> None:
     await redis.delete(ws_session_key(token))
+
+
+CHAT_HISTORY_LIMIT = 200
+
+
+async def append_chat_message(redis: Redis, room_id: str, message: dict[str, Any]) -> None:
+    key = room_chat_key(room_id)
+    await redis.rpush(key, json.dumps(message, ensure_ascii=False))
+    await redis.ltrim(key, -CHAT_HISTORY_LIMIT, -1)
+
+
+async def get_chat_history(redis: Redis, room_id: str) -> list[dict[str, Any]]:
+    raw_items = await redis.lrange(room_chat_key(room_id), 0, -1)
+    result: list[dict[str, Any]] = []
+    for raw in raw_items:
+        text = raw.decode() if isinstance(raw, bytes) else raw
+        try:
+            result.append(json.loads(text))
+        except json.JSONDecodeError:
+            continue
+    return result

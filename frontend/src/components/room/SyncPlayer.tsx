@@ -300,9 +300,6 @@ export default function SyncPlayer({
             Синхронизироваться с админом
           </button>
         )}
-        {isAdmin && (
-          <span className="text-fastwatch-muted"></span>
-        )}
       </div>
     </div>
   );

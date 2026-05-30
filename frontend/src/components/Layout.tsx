@@ -1,17 +1,21 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import BannedOverlay from "./BannedOverlay";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { joinRoomById } from "../lib/joinRoom";
-import { roomPath } from "../lib/links";
+import { adminPath, editProfilePath, profilePath, roomPath } from "../lib/links";
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, guest, logout } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [roomId, setRoomId] = useState("");
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const isRoomRoute = /^\/room\//.test(location.pathname);
 
   const joinById = async (e: FormEvent) => {
     e.preventDefault();
@@ -57,37 +61,45 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-fastwatch-bg text-white">
-      <header className="border-b border-fastwatch-accent/20 bg-gradient-to-b from-fastwatch-panel to-fastwatch-bg px-4 py-4 sm:px-6">
-        <div className="mx-auto max-w-7xl">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded bg-fastwatch-accent font-bold text-white">
-                B
+      <header
+        className={`border-b border-fastwatch-accent/20 bg-gradient-to-b from-fastwatch-panel to-fastwatch-bg px-3 sm:px-6 ${
+          isRoomRoute ? "py-2 sm:py-3" : "py-4"
+        }`}
+      >
+        <div className={`mx-auto ${isRoomRoute ? "max-w-full" : "max-w-7xl"}`}>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+            <Link to="/" className="flex shrink-0 items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded bg-fastwatch-accent text-xs font-bold text-white sm:h-8 sm:w-8 sm:text-sm">
+                AC
               </div>
               <span className="hidden font-bold tracking-tight sm:inline">AbsoluteCinema</span>
             </Link>
 
-            <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center lg:justify-end">
-              <form onSubmit={joinById} className="flex min-w-0 gap-2 lg:w-[360px]">
-                <input
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  placeholder="ID комнаты"
-                  className="min-w-0 flex-1 rounded-lg border border-white/10 bg-fastwatch-bg px-3 py-2 text-sm font-mono focus:border-fastwatch-accent focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="rounded-lg bg-fastwatch-accent px-4 py-2 text-sm font-medium text-white transition hover:bg-fastwatch-accentDark"
-                >
-                  Найти
-                </button>
-              </form>
+            <div className="flex flex-1 flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-end">
+              {!isRoomRoute && (
+                <form onSubmit={joinById} className="flex min-w-0 gap-2 lg:w-[360px]">
+                  <input
+                    value={roomId}
+                    onChange={(e) => setRoomId(e.target.value)}
+                    placeholder="ID комнаты"
+                    className="min-w-0 flex-1 rounded-lg border border-white/10 bg-fastwatch-bg px-3 py-2 text-sm font-mono focus:border-fastwatch-accent focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="shrink-0 rounded-lg bg-fastwatch-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-fastwatch-accentDark sm:px-4"
+                  >
+                    Найти
+                  </button>
+                </form>
+              )}
 
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <Link to="/rooms" className="text-fastwatch-muted transition hover:text-white">
-                  Открытые комнаты
-                </Link>
-                {!user && (
+              <div className="flex flex-wrap items-center gap-2 text-xs sm:gap-3 sm:text-sm">
+                {!isRoomRoute && (
+                  <Link to="/rooms" className="text-fastwatch-muted transition hover:text-white">
+                    Открытые комнаты
+                  </Link>
+                )}
+                {!user && !isRoomRoute && (
                   <>
                     <Link to="/login" className="text-fastwatch-muted transition hover:text-white">
                       Вход
@@ -102,11 +114,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <button
                       type="button"
                       onClick={() => setIsUserMenuOpen((open) => !open)}
-                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition hover:border-fastwatch-accent/60 hover:bg-white/10 sm:text-sm"
+                      className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-white transition hover:border-fastwatch-accent/60 hover:bg-white/10 sm:px-3 sm:py-1.5 sm:text-sm"
                       aria-haspopup="menu"
                       aria-expanded={isUserMenuOpen}
                     >
-                      <span>{user.username}</span>
+                      <span className="max-w-[8rem] truncate sm:max-w-none">{user.username}</span>
                       <span className={`text-[10px] text-fastwatch-muted transition ${isUserMenuOpen ? "rotate-180" : ""}`}>
                         ▼
                       </span>
@@ -115,8 +127,34 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {isUserMenuOpen && (
                       <div
                         role="menu"
-                        className="absolute right-0 z-20 mt-2 w-44 overflow-hidden rounded-lg border border-white/10 bg-fastwatch-panel py-1 shadow-xl shadow-black/30"
+                        className="absolute right-0 z-20 mt-2 w-48 overflow-hidden rounded-lg border border-white/10 bg-fastwatch-panel py-1 shadow-xl shadow-black/30"
                       >
+                        <Link
+                          to={profilePath(user.username)}
+                          role="menuitem"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="block px-3 py-2 text-sm text-white transition hover:bg-white/5"
+                        >
+                          Мой профиль
+                        </Link>
+                        <Link
+                          to={editProfilePath()}
+                          role="menuitem"
+                          onClick={() => setIsUserMenuOpen(false)}
+                          className="block px-3 py-2 text-sm text-white transition hover:bg-white/5"
+                        >
+                          Редактировать
+                        </Link>
+                        {user.is_global_admin && (
+                          <Link
+                            to={adminPath()}
+                            role="menuitem"
+                            onClick={() => setIsUserMenuOpen(false)}
+                            className="block px-3 py-2 text-sm text-amber-200 transition hover:bg-amber-500/10"
+                          >
+                            Админ-панель
+                          </Link>
+                        )}
                         <button
                           type="button"
                           role="menuitem"
@@ -138,7 +176,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">{children}</main>
+      <main
+        className={`mx-auto ${
+          isRoomRoute
+            ? "max-w-full px-2 py-2 sm:px-4 sm:py-3"
+            : "max-w-7xl px-4 py-6 sm:px-6 sm:py-12"
+        }`}
+      >
+        {children}
+      </main>
+      <BannedOverlay />
     </div>
   );
 }

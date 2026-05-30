@@ -6,17 +6,22 @@ from fastapi import WebSocket
 from app.core.redis_client import get_redis
 from app.services.redis_room_service import (
     add_to_queue,
+    append_chat_message,
     approve_suggestion,
+    get_chat_history,
     get_player_state,
     get_queues,
     is_banned_in_redis,
+    is_participant_muted,
     list_participants,
+    mute_participant,
     pop_next_main,
     publish_room_event,
     remove_from_queue,
     remove_participant,
     reorder_main_queue,
     set_player_state,
+    unmute_participant,
 )
 from app.ws import messages as M
 from app.ws.connection_manager import manager
@@ -32,6 +37,7 @@ class WsHandlerContext:
         self.display_name: str = session["display_name"]
         self.is_admin: bool = bool(session.get("is_admin"))
         self.is_guest: bool = bool(session.get("is_guest"))
+        self.username: str | None = session.get("username")
 
 
 async def _broadcast(
@@ -40,6 +46,38 @@ async def _broadcast(
     redis = get_redis()
     message = {"type": msg_type, "payload": payload, "sender_id": sender_id}
     await publish_room_event(redis, room_id, message)
+
+
+async def broadcast_system(
+    room_id: str,
+    text: str,
+    *,
+    event: str | None = None,
+    actor_display_name: str | None = None,
+) -> None:
+    payload = {
+        "text": text,
+        "event": event,
+        "actor_display_name": actor_display_name,
+        "sent_at": time.time(),
+    }
+    redis = get_redis()
+    await append_chat_message(redis, room_id, {"kind": "system", **payload})
+    await _broadcast(room_id, M.SYSTEM_MESSAGE, payload)
+
+
+async def broadcast_room_update(
+    room_id: str,
+    *,
+    name: str,
+    is_private: bool,
+    tags: list[str],
+) -> None:
+    await _broadcast(
+        room_id,
+        M.ROOM_UPDATE,
+        {"name": name, "is_private": is_private, "tags": tags},
+    )
 
 
 async def _send_error(ctx: WsHandlerContext, detail: str) -> None:
@@ -94,6 +132,14 @@ async def handle_player_state(ctx: WsHandlerContext, payload: dict[str, Any]) ->
             current_time=0.0,
         )
         if url and url != prev_url:
+            title_str = str(title).strip() if title else ""
+            label = title_str or url
+            await broadcast_system(
+                ctx.room_id,
+                f"{ctx.display_name} изменил видео на «{label}»",
+                event="video_changed",
+                actor_display_name=ctx.display_name,
+            )
             await record_video_history(ctx.room_id, url, title)
     elif action == M.ACTION_GATHER_ALL:
         state = await set_player_state(
@@ -115,20 +161,31 @@ async def handle_player_state(ctx: WsHandlerContext, payload: dict[str, Any]) ->
 
 
 async def handle_chat(ctx: WsHandlerContext, payload: dict[str, Any]) -> None:
+    redis = get_redis()
+    if await is_participant_muted(redis, ctx.room_id, ctx.participant_id):
+        await _send_error(ctx, "Вы замучены и не можете писать в чат")
+        return
+
     text = str(payload.get("text", "")).strip()
     if not text or len(text) > 2000:
         await _send_error(ctx, "Пустое или слишком длинное сообщение")
         return
 
+    message_payload: dict[str, Any] = {
+        "text": text,
+        "display_name": ctx.display_name,
+        "participant_id": ctx.participant_id,
+        "sent_at": time.time(),
+    }
+    if ctx.username:
+        message_payload["username"] = ctx.username
+
+    await append_chat_message(redis, ctx.room_id, {"kind": "user", **message_payload})
+
     await _broadcast(
         ctx.room_id,
         M.CHAT_MESSAGE,
-        {
-            "text": text,
-            "display_name": ctx.display_name,
-            "participant_id": ctx.participant_id,
-            "sent_at": time.time(),
-        },
+        message_payload,
         sender_id=ctx.participant_id,
     )
 
@@ -218,6 +275,9 @@ async def handle_moderation(ctx: WsHandlerContext, payload: dict[str, Any]) -> N
         return
 
     if action == M.MOD_KICK:
+        participants = await list_participants(redis, ctx.room_id)
+        target = next((p for p in participants if p.get("id") == target_id), None)
+        target_name = target.get("display_name", "Участник") if target else "Участник"
         await remove_participant(redis, ctx.room_id, target_id)
         await manager.send_json(
             ctx.room_id,
@@ -225,6 +285,12 @@ async def handle_moderation(ctx: WsHandlerContext, payload: dict[str, Any]) -> N
             {"type": M.KICKED, "payload": {"reason": "kicked_by_admin"}},
         )
         await manager.close_participant(ctx.room_id, target_id, reason="kicked")
+        await broadcast_system(
+            ctx.room_id,
+            f"{ctx.display_name} исключил {target_name} из комнаты",
+            event="user_kicked",
+            actor_display_name=ctx.display_name,
+        )
         await _broadcast_participants(ctx.room_id)
         return
 
@@ -243,6 +309,7 @@ async def handle_moderation(ctx: WsHandlerContext, payload: dict[str, Any]) -> N
             await _send_error(ctx, "Не удалось сохранить бан")
             return
 
+        target_name = target.get("display_name", "Участник")
         await remove_participant(redis, ctx.room_id, target_id)
         await manager.send_json(
             ctx.room_id,
@@ -250,6 +317,34 @@ async def handle_moderation(ctx: WsHandlerContext, payload: dict[str, Any]) -> N
             {"type": M.BANNED, "payload": {"reason": "banned_by_admin"}},
         )
         await manager.close_participant(ctx.room_id, target_id, reason="banned")
+        await broadcast_system(
+            ctx.room_id,
+            f"{ctx.display_name} забанил {target_name} в комнате",
+            event="user_banned",
+            actor_display_name=ctx.display_name,
+        )
+        await _broadcast_participants(ctx.room_id)
+        return
+
+    if action == M.MOD_MUTE:
+        participants = await list_participants(redis, ctx.room_id)
+        target = next((p for p in participants if p.get("id") == target_id), None)
+        if target is None:
+            await _send_error(ctx, "Участник не найден")
+            return
+        await mute_participant(redis, ctx.room_id, target_id)
+        target_name = target.get("display_name", "Участник")
+        await broadcast_system(
+            ctx.room_id,
+            f"{ctx.display_name} замутил {target_name}",
+            event="user_muted",
+            actor_display_name=ctx.display_name,
+        )
+        await _broadcast_participants(ctx.room_id)
+        return
+
+    if action == M.MOD_UNMUTE:
+        await unmute_participant(redis, ctx.room_id, target_id)
         await _broadcast_participants(ctx.room_id)
         return
 
@@ -277,6 +372,7 @@ async def send_initial_state(ctx: WsHandlerContext) -> None:
     state = await get_player_state(redis, ctx.room_id)
     queues = await get_queues(redis, ctx.room_id)
     participants = await list_participants(redis, ctx.room_id)
+    chat_history = await get_chat_history(redis, ctx.room_id)
 
     await ctx.websocket.send_json(
         {
@@ -289,6 +385,7 @@ async def send_initial_state(ctx: WsHandlerContext) -> None:
                 "player_state": state,
                 "queues": queues,
                 "participants": participants,
+                "chat_history": chat_history,
             },
         }
     )

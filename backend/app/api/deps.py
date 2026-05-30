@@ -11,6 +11,7 @@ from app.core.redis_client import get_redis as _get_redis
 from app.core.security import decode_access_token
 from app.models.user import User
 from app.services.auth_service import get_user_by_id
+from app.services.global_ban_service import get_global_ban, is_globally_banned
 from redis.asyncio import Redis
 
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
@@ -68,5 +69,32 @@ async def get_current_user(
     return auth.user
 
 
+async def get_active_user(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: DbSession,
+) -> User:
+    if await is_globally_banned(session, current_user.id):
+        ban = await get_global_ban(session, current_user.id)
+        reason = ban.reason if ban and ban.reason else "Обратитесь к администрации"
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Ваш аккаунт заблокирован на сайте. {reason}",
+        )
+    return current_user
+
+
+async def get_global_admin(
+    current_user: Annotated[User, Depends(get_active_user)],
+) -> User:
+    if not current_user.is_global_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только глобальный администратор",
+        )
+    return current_user
+
+
 OptionalAuth = Annotated[AuthContext, Depends(get_optional_auth)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
+ActiveUser = Annotated[User, Depends(get_active_user)]
+GlobalAdmin = Annotated[User, Depends(get_global_admin)]

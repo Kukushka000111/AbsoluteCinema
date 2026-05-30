@@ -1,5 +1,8 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import type { ChatMessage, Participant, QueueItem } from "../../types/room";
+import { profilePath } from "../../lib/links";
+import ParticipantRow from "./ParticipantRow";
 
 type Tab = "chat" | "queue" | "users" | "admin";
 
@@ -19,32 +22,60 @@ type Props = {
   onPlayItem: (item: QueueItem) => void;
   onKick: (targetId: string) => void;
   onBan: (targetId: string) => void;
+  onMute: (targetId: string, mute: boolean) => void;
   onGatherAll: () => void;
   roomName?: string;
   roomTags?: string[];
-  onUpdateRoom?: (name: string, tags: string[]) => void;
+  roomIsPrivate?: boolean;
+  onUpdateRoom?: (name: string, tags: string[], isPrivate: boolean) => void;
+  forcedTab?: Tab;
+  onTabChange?: (tab: Tab) => void;
+  hideTabBar?: boolean;
+  onClose?: () => void;
 };
 
 export default function RoomSidebar(props: Props) {
-  const [tab, setTab] = useState<Tab>("chat");
+  const [internalTab, setInternalTab] = useState<Tab>("chat");
+  const tab = props.forcedTab ?? internalTab;
+  const setTab = (t: Tab) => {
+    props.onTabChange?.(t);
+    if (!props.forcedTab) {setInternalTab(t);}
+  };
   const tabs: Tab[] = props.isAdmin ? ["chat", "queue", "users", "admin"] : ["chat", "queue", "users"];
 
   return (
-    <aside className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-fastwatch-panel">
-      <div className="flex border-b border-white/10 overflow-x-auto">
-        {tabs.map((t) => (
+    <aside className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-fastwatch-panel lg:rounded-xl lg:border lg:border-white/10">
+      {props.onClose && (
+        <div className="flex items-center justify-between border-b border-white/10 px-3 py-2 lg:hidden">
+          <span className="text-sm font-medium capitalize">
+            {tab === "chat" ? "Чат" : tab === "queue" ? "Очередь" : tab === "users" ? "Участники" : "Админ"}
+          </span>
           <button
-            key={t}
             type="button"
-            onClick={() => setTab(t)}
-            className={`px-3 py-2 text-sm capitalize whitespace-nowrap ${
-              tab === t ? "border-b-2 border-fastwatch-accent text-white" : "text-fastwatch-muted"
-            }`}
+            onClick={props.onClose}
+            className="rounded-lg px-2 py-1 text-sm text-fastwatch-muted hover:bg-white/5 hover:text-white"
           >
-            {t === "chat" ? "Чат" : t === "queue" ? "Очередь" : t === "users" ? "Участники" : "⚙️ Админ"}
+            ✕
           </button>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {!props.hideTabBar && (
+        <div className="flex border-b border-white/10 overflow-x-auto">
+          {tabs.map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`px-3 py-2 text-sm capitalize whitespace-nowrap ${
+                tab === t ? "border-b-2 border-fastwatch-accent text-white" : "text-fastwatch-muted"
+              }`}
+            >
+              {t === "chat" ? "Чат" : t === "queue" ? "Очередь" : t === "users" ? "Участники" : "⚙️ Админ"}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {tab === "chat" && <ChatTab {...props} />}
@@ -56,8 +87,27 @@ export default function RoomSidebar(props: Props) {
   );
 }
 
-function ChatTab({ chat, onSendChat }: Pick<Props, "chat" | "onSendChat">) {
+function ChatTab({
+  chat,
+  onSendChat,
+  participants,
+  participantId,
+}: Pick<Props, "chat" | "onSendChat" | "participants" | "participantId">) {
   const [text, setText] = useState("");
+  const listRef = useRef<HTMLUListElement>(null);
+  const usernameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of participants) {
+      if (p.username) {map.set(p.id, p.username);}
+    }
+    return map;
+  }, [participants]);
+  const selfMuted = participants.find((p) => p.id === participantId)?.is_muted ?? false;
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) {el.scrollTop = el.scrollHeight;}
+  }, [chat.length]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -68,22 +118,58 @@ function ChatTab({ chat, onSendChat }: Pick<Props, "chat" | "onSendChat">) {
 
   return (
     <div className="flex h-full flex-col">
-      <ul className="mb-3 flex-1 space-y-2 overflow-y-auto text-sm">
-        {chat.map((m, i) => (
-          <li key={`${m.sent_at}-${i}`}>
-            <span className="font-medium text-fastwatch-accent">{m.display_name}: </span>
-            {m.text}
+      <ul ref={listRef} className="mb-3 flex-1 space-y-2 overflow-y-auto text-sm">
+        {chat.length === 0 && (
+          <li className="py-4 text-center text-xs italic text-fastwatch-muted/70">
+            Системные события и сообщения появятся здесь
           </li>
-        ))}
+        )}
+        {chat.map((m, i) =>
+          m.kind === "system" ? (
+            <li key={`sys-${m.sent_at}-${i}`} className="py-0.5 text-center">
+              <span className="text-xs italic text-amber-200/75">{m.text}</span>
+            </li>
+          ) : (
+            <li key={`${m.sent_at}-${i}`}>
+              {(() => {
+                const username = m.username ?? usernameById.get(m.participant_id);
+                return username ? (
+                  <>
+                    <Link
+                      to={profilePath(username)}
+                      className="font-medium text-fastwatch-accent hover:underline"
+                    >
+                      {m.display_name}
+                    </Link>
+                    : {m.text}
+                  </>
+                ) : (
+                  <>
+                    <span className="font-medium text-fastwatch-accent">{m.display_name}: </span>
+                    {m.text}
+                  </>
+                );
+              })()}
+            </li>
+          ),
+        )}
       </ul>
+      {selfMuted && (
+        <p className="mb-2 text-xs text-amber-200/80">Вы замучены и не можете писать в чат</p>
+      )}
       <form onSubmit={submit} className="flex gap-2">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className="flex-1 rounded-lg border border-white/10 bg-fastwatch-bg px-3 py-2 text-sm"
-          placeholder="Сообщение..."
+          disabled={selfMuted}
+          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-fastwatch-bg px-3 py-2 text-sm disabled:opacity-50"
+          placeholder={selfMuted ? "Чат отключён" : "Сообщение..."}
         />
-        <button type="submit" className="rounded-lg bg-fastwatch-accent px-3 py-2 text-sm">
+        <button
+          type="submit"
+          disabled={selfMuted}
+          className="shrink-0 rounded-lg bg-fastwatch-accent px-3 py-2 text-sm disabled:opacity-50"
+        >
           →
         </button>
       </form>
@@ -154,19 +240,19 @@ function QueueTab({
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://rutube.ru/video/..."
-          className="w-full rounded border border-white/10 bg-fastwatch-bg px-2 py-1"
+          className="w-full rounded border border-white/10 bg-fastwatch-bg px-2 py-1.5 text-sm"
         />
         <p className="text-[11px] leading-snug text-fastwatch-muted">{SUPPORTED_SOURCES_HINT}</p>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Название (опционально)"
-          className="w-full rounded border border-white/10 bg-fastwatch-bg px-2 py-1"
+          className="w-full rounded border border-white/10 bg-fastwatch-bg px-2 py-1.5 text-sm"
         />
         <button
           type="button"
           onClick={add}
-          className="w-full rounded bg-fastwatch-accent py-1.5 text-white"
+          className="w-full rounded bg-fastwatch-accent py-2 text-sm text-white"
         >
           {isAdmin ? "В основной плейлист" : "В предложку"}
         </button>
@@ -263,8 +349,12 @@ function UsersTab({
   participants,
   onKick,
   onBan,
+  onMute,
   onGatherAll,
-}: Pick<Props, "isAdmin" | "participantId" | "participants" | "onKick" | "onBan" | "onGatherAll">) {
+}: Pick<
+  Props,
+  "isAdmin" | "participantId" | "participants" | "onKick" | "onBan" | "onMute" | "onGatherAll"
+>) {
   return (
     <div className="space-y-2 text-sm">
       {isAdmin && (
@@ -278,26 +368,15 @@ function UsersTab({
       )}
       <ul className="space-y-2">
         {participants.map((p) => (
-          <li
+          <ParticipantRow
             key={p.id}
-            className="flex items-center justify-between rounded border border-white/10 px-2 py-1"
-          >
-            <span>
-              {p.display_name} <span className="text-xs text-fastwatch-muted">({p.role})</span>
-            </span>
-            {isAdmin && p.id !== participantId && (
-              <span className="flex gap-1">
-                <button type="button" className="text-xs text-yellow-400" onClick={() => onKick(p.id)}>
-                  Кик
-                </button>
-                {!p.is_guest && (
-                  <button type="button" className="text-xs text-red-400" onClick={() => onBan(p.id)}>
-                    Бан
-                  </button>
-                )}
-              </span>
-            )}
-          </li>
+            participant={p}
+            participantId={participantId}
+            isAdmin={isAdmin}
+            onKick={onKick}
+            onBan={onBan}
+            onMute={onMute}
+          />
         ))}
       </ul>
     </div>
@@ -307,11 +386,20 @@ function UsersTab({
 function AdminTab({
   roomName = "",
   roomTags = [],
+  roomIsPrivate = false,
   onUpdateRoom,
-}: Pick<Props, "roomName" | "roomTags" | "onUpdateRoom">) {
+}: Pick<Props, "roomName" | "roomTags" | "roomIsPrivate" | "onUpdateRoom">) {
+  const tagsLabel = roomTags.join(", ");
   const [editName, setEditName] = useState(roomName);
-  const [editTags, setEditTags] = useState(roomTags.join(", "));
+  const [editTags, setEditTags] = useState(tagsLabel);
+  const [editPrivate, setEditPrivate] = useState(roomIsPrivate);
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setEditName(roomName);
+    setEditTags(tagsLabel);
+    setEditPrivate(roomIsPrivate);
+  }, [roomName, tagsLabel, roomIsPrivate]);
 
   const handleSave = () => {
     if (!onUpdateRoom) {return;}
@@ -319,7 +407,7 @@ function AdminTab({
       .split(",")
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
-    onUpdateRoom(editName.trim(), tags);
+    onUpdateRoom(editName.trim(), tags, editPrivate);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -327,40 +415,56 @@ function AdminTab({
   return (
     <div className="space-y-4 text-sm">
       <div className="rounded-lg bg-fastwatch-bg p-3">
-        <label className="block text-xs font-medium text-fastwatch-muted mb-2">Название комнаты</label>
+        <label className="mb-2 block text-xs font-medium text-fastwatch-muted">Название комнаты</label>
         <input
           value={editName}
           onChange={(e) => setEditName(e.target.value)}
-          className="w-full rounded border border-white/10 bg-fastwatch-panel px-3 py-2 text-sm mb-3"
-          placeholder="Введите название"
+          className="mb-3 w-full rounded border border-white/10 bg-fastwatch-panel px-3 py-2 text-sm"
+          placeholder={roomName || "Название комнаты"}
         />
-        <label className="block text-xs font-medium text-fastwatch-muted mb-2">
+        <label className="mb-2 block text-xs font-medium text-fastwatch-muted">
           Теги (через запятую)
         </label>
         <input
           value={editTags}
           onChange={(e) => setEditTags(e.target.value)}
-          className="w-full rounded border border-white/10 bg-fastwatch-panel px-3 py-2 text-sm mb-3"
-          placeholder="кино, музыка, аниме"
+          className="mb-3 w-full rounded border border-white/10 bg-fastwatch-panel px-3 py-2 text-sm"
+          placeholder={tagsLabel || "кино, музыка, аниме"}
         />
+        <label className="mb-3 flex cursor-pointer items-start gap-3 rounded-lg border border-white/10 bg-fastwatch-panel px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={editPrivate}
+            onChange={(e) => setEditPrivate(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-fastwatch-accent"
+          />
+          <span>
+            <span className="block font-medium">Приватная комната</span>
+            <span className="text-xs text-fastwatch-muted">
+              Не отображается в списке открытых комнат. Доступ по ссылке.
+            </span>
+          </span>
+        </label>
         <button
           type="button"
           onClick={handleSave}
-          className={`w-full py-2 rounded font-medium transition ${
+          className={`w-full rounded py-2 font-medium transition ${
             saved
               ? "bg-green-600 text-white"
-              : "bg-fastwatch-accent hover:bg-fastwatch-accentDark text-white"
+              : "bg-fastwatch-accent text-white hover:bg-fastwatch-accentDark"
           }`}
         >
           {saved ? "✓ Сохранено" : "💾 Сохранить"}
         </button>
       </div>
 
-      <div className="text-xs text-fastwatch-muted bg-fastwatch-bg p-3 rounded-lg">
-        <p className="font-medium mb-2">💡 Панель администратора</p>
-        <p>• Здесь вы можете менять название и теги комнаты</p>
-        <p className="mt-1">• Изменения будут видны всем участникам</p>
+      <div className="rounded-lg bg-fastwatch-bg p-3 text-xs text-fastwatch-muted">
+        <p className="mb-2 font-medium">💡 Панель администратора</p>
+        <p>• Меняйте название, теги и приватность комнаты</p>
+        <p className="mt-1">• Изменения видны всем участникам в чате</p>
       </div>
     </div>
   );
 }
+
+export type { Tab as RoomSidebarTab };

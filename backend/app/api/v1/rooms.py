@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import CurrentUser, DbSession, OptionalAuth, RedisDep
+from app.api.deps import ActiveUser, DbSession, OptionalAuth, RedisDep
 from app.schemas.room import (
     BanUserRequest,
     JoinRoomRequest,
@@ -12,13 +12,16 @@ from app.schemas.room import (
     RoomUpdate,
 )
 from app.services.ban_service import is_user_banned
+from app.services.global_ban_service import can_manage_room, is_globally_banned
 from app.services.moderation_service import ban_user_in_room
+from app.services.profile_service import is_blocked_from_room_admin, record_room_visit
 from app.services.redis_room_service import (
     cache_banned_user,
     create_ws_session,
     get_player_state,
     hydrate_room_redis,
 )
+from app.ws.handlers import broadcast_room_update, broadcast_system
 from app.services.room_service import (
     RoomError,
     build_room_public,
@@ -38,7 +41,7 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 async def my_rooms(
     session: DbSession,
     redis: RedisDep,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
 ) -> list[RoomPublic]:
     """Комнаты текущего пользователя (для иконки истории на главной)."""
     rooms = await list_admin_rooms(session, current_user.id)
@@ -54,7 +57,7 @@ async def create_room_endpoint(
     payload: RoomCreate,
     session: DbSession,
     redis: RedisDep,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
 ) -> RoomPublic:
     room = await create_room(
         session,
@@ -89,10 +92,12 @@ async def patch_room(
     payload: RoomUpdate,
     session: DbSession,
     redis: RedisDep,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
 ) -> RoomPublic:
     try:
         room = await get_room_or_404(session, room_id)
+        old_name = room.name
+        old_is_private = room.is_private
         room = await update_room(
             session,
             room,
@@ -104,6 +109,33 @@ async def patch_room(
     except RoomError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
+    actor = current_user.username
+    if payload.is_private is not None and payload.is_private != old_is_private:
+        if room.is_private:
+            text = f"{actor} сделал комнату приватной"
+        else:
+            text = f"{actor} открыл комнату для всех"
+        await broadcast_system(
+            room_id,
+            text,
+            event="room_privacy_changed",
+            actor_display_name=actor,
+        )
+    if payload.name is not None and payload.name != old_name:
+        await broadcast_system(
+            room_id,
+            f"{actor} переименовал комнату в «{room.name}»",
+            event="room_renamed",
+            actor_display_name=actor,
+        )
+
+    await broadcast_room_update(
+        room_id,
+        name=room.name,
+        is_private=room.is_private,
+        tags=room.tags or [],
+    )
+
     data = await build_room_public(room, redis)
     return RoomPublic.model_validate(data)
 
@@ -113,7 +145,7 @@ async def remove_room(
     room_id: str,
     session: DbSession,
     redis: RedisDep,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
 ) -> None:
     try:
         room = await get_room_or_404(session, room_id)
@@ -126,11 +158,18 @@ async def remove_room(
 async def room_history(
     room_id: str,
     session: DbSession,
+    current_user: ActiveUser,
 ) -> list[RoomHistoryItem]:
     try:
-        await get_room_or_404(session, room_id)
+        room = await get_room_or_404(session, room_id)
     except RoomError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    if not can_manage_room(current_user, room):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только админ комнаты может просматривать историю",
+        )
 
     entries = await get_room_history(session, room_id)
     return [RoomHistoryItem.model_validate(e) for e in entries]
@@ -152,18 +191,29 @@ async def join_room(
     body = body or JoinRoomRequest()
 
     if auth.user is not None:
+        if await is_globally_banned(session, auth.user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Ваш аккаунт заблокирован на сайте",
+            )
         if await is_user_banned(session, room_id, auth.user.id):
             await cache_banned_user(redis, room_id, str(auth.user.id))
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Вы забанены в этой комнате",
             )
+        if await is_blocked_from_room_admin(session, room.admin_id, auth.user.id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Владелец комнаты заблокировал вас",
+            )
 
         participant_id = str(auth.user.id)
         display_name = auth.user.username
+        username = auth.user.username
         is_guest = False
         guest_id = None
-        is_admin = room.admin_id == auth.user.id
+        is_admin = room.admin_id == auth.user.id or auth.user.is_global_admin
         role = "admin" if is_admin else "viewer"
     else:
         guest_id = body.guest_id or generate_guest_id()
@@ -172,6 +222,7 @@ async def join_room(
         is_guest = True
         is_admin = False
         role = "guest"
+        username = None
 
     await hydrate_room_redis(redis, room_id)
     player_raw = await get_player_state(redis, room_id)
@@ -180,12 +231,17 @@ async def join_room(
     ws_token = await create_ws_session(
         redis,
         room_id=room_id,
+        room_name=room.name,
         participant_id=participant_id,
         display_name=display_name,
         role=role,
         is_admin=is_admin,
         is_guest=is_guest,
+        username=username if not is_guest else None,
     )
+
+    if auth.user is not None:
+        await record_room_visit(session, auth.user.id, room_id)
 
     return JoinRoomResponse(
         room=RoomPublic.model_validate(room_data),
@@ -205,7 +261,7 @@ async def ban_user_endpoint(
     body: BanUserRequest,
     session: DbSession,
     redis: RedisDep,
-    current_user: CurrentUser,
+    current_user: ActiveUser,
 ) -> dict[str, str]:
     try:
         ban = await ban_user_in_room(
@@ -213,7 +269,7 @@ async def ban_user_endpoint(
             redis,
             room_id=room_id,
             target_user_id=body.user_id,
-            admin_id=current_user.id,
+            admin=current_user,
         )
     except RoomError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

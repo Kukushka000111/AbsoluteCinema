@@ -26,5 +26,17 @@ def room_banned_key(room_id: str) -> str:
     return f"room:{room_id}:banned"
 
 
+def room_muted_key(room_id: str) -> str:
+    return f"room:{room_id}:muted"
+
+
+def room_chat_key(room_id: str) -> str:
+    return f"room:{room_id}:chat"
+
+
 def ws_session_key(token: str) -> str:
     return f"ws:session:{token}"
+
+
+def user_presence_key(user_id: str) -> str:
+    return f"user:{user_id}:presence"

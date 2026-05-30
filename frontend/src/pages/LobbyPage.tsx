@@ -1,10 +1,11 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { apiFetch, type RoomPublic } from "../api/client";
+import RoomCard from "../components/room/RoomCard";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { joinRoomById } from "../lib/joinRoom";
-import { copyRoomLink, roomPath } from "../lib/links";
+import { roomPath } from "../lib/links";
 
 export default function LobbyPage() {
   const { user } = useAuth();
@@ -17,7 +18,7 @@ export default function LobbyPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const loadMyRooms = useCallback(async () => {
-    if (!user) {
+    if (!user || user.is_globally_banned) {
       setMyRooms([]);
       return;
     }
@@ -89,14 +90,14 @@ export default function LobbyPage() {
   };
 
   return (
-    <div className="space-y-12">
-      <section className="relative overflow-hidden rounded-3xl border border-fastwatch-accent/20 bg-gradient-to-br from-fastwatch-panel to-fastwatch-bg p-10 sm:p-14">
+    <div className="space-y-8 sm:space-y-12">
+      <section className="relative overflow-hidden rounded-2xl border border-fastwatch-accent/20 bg-gradient-to-br from-fastwatch-panel to-fastwatch-bg p-6 sm:rounded-3xl sm:p-10 lg:p-14">
         <div className="absolute inset-0 bg-gradient-hero opacity-60" />
         <div className="relative z-10 max-w-3xl">
-          <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl lg:text-6xl">
             Смотрите видео вместе
           </h1>
-          <p className="mt-4 max-w-2xl text-lg leading-relaxed text-fastwatch-muted sm:text-xl">
+          <p className="mt-3 max-w-2xl text-base leading-relaxed text-fastwatch-muted sm:mt-4 sm:text-lg lg:text-xl">
             Создайте комнату, добавьте ссылку и смотрите синхронно с чатом.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -116,12 +117,6 @@ export default function LobbyPage() {
                 Параметры
               </button>
             )}
-            <Link
-              to="/rooms"
-              className="inline-flex items-center justify-center rounded-xl border border-white/10 px-8 py-3 font-semibold text-fastwatch-muted transition hover:bg-white/5 hover:text-white"
-            >
-              Открытые комнаты
-            </Link>
           </div>
         </div>
       </section>
@@ -190,74 +185,5 @@ export default function LobbyPage() {
         </section>
       )}
     </div>
-  );
-}
-
-function RoomCard({
-  room,
-  onJoin,
-  showHistoryLink,
-}: {
-  room: RoomPublic;
-  onJoin: (id: string) => void;
-  showHistoryLink?: boolean;
-}) {
-  const { toast } = useToast();
-
-  const copyLink = async () => {
-    const ok = await copyRoomLink(room.id);
-    toast(ok ? "Ссылка скопирована" : "Не удалось скопировать", ok ? "success" : "error");
-  };
-
-  return (
-    <article className="flex flex-col rounded-xl border border-white/10 bg-fastwatch-panel p-5 transition hover:border-fastwatch-accent/60 hover:bg-fastwatch-panel/80">
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <h3 className="min-w-0 flex-1 truncate text-base font-semibold">{room.name}</h3>
-        {room.is_private && (
-          <span className="shrink-0 rounded-full bg-fastwatch-accent/20 px-2 py-1 text-[11px] font-medium text-fastwatch-accent">
-            Закрытая
-          </span>
-        )}
-      </div>
-      <p className="mb-3 text-xs text-fastwatch-muted">
-        {room.admin.username} · онлайн: {room.online_count}
-      </p>
-      {room.tags.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-1.5">
-          {room.tags.map((tag) => (
-            <span
-              key={tag}
-              className="rounded-full bg-fastwatch-accent/20 px-2.5 py-1 text-[11px] font-medium text-fastwatch-accent"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="mt-auto flex flex-wrap gap-2 border-t border-white/5 pt-4">
-        <button
-          type="button"
-          onClick={() => onJoin(room.id)}
-          className="flex-1 rounded-lg bg-fastwatch-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-fastwatch-accentDark"
-        >
-          Войти
-        </button>
-        <button
-          type="button"
-          onClick={copyLink}
-          className="rounded-lg border border-white/10 px-3 py-2 text-sm transition hover:bg-white/5"
-        >
-          Ссылка
-        </button>
-        {showHistoryLink && (
-          <Link
-            to={`/rooms/${room.id}/history`}
-            className="rounded-lg border border-white/10 px-3 py-2 text-sm transition hover:bg-white/5"
-          >
-            История
-          </Link>
-        )}
-      </div>
-    </article>
   );
 }
