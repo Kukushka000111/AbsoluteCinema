@@ -4,7 +4,6 @@ from app.api.deps import ActiveUser, DbSession, OptionalAuth, RedisDep
 from app.core.cookies import set_ws_session_cookie
 from app.services.ws_control_service import notify_room_closed
 from app.schemas.room import (
-    BanUserRequest,
     JoinRoomRequest,
     JoinRoomResponse,
     PlayerStateSnapshot,
@@ -13,12 +12,9 @@ from app.schemas.room import (
     RoomPublic,
     RoomUpdate,
 )
-from app.services.ban_service import is_user_banned
 from app.services.global_ban_service import can_manage_room, is_globally_banned
-from app.services.moderation_service import ban_user_in_room
-from app.services.profile_service import is_blocked_from_room_admin, record_room_visit
+from app.services.profile_service import record_room_visit
 from app.services.redis_room_service import (
-    cache_banned_user,
     create_ws_session,
     get_player_state,
     hydrate_room_redis,
@@ -209,17 +205,6 @@ async def join_room(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Ваш аккаунт заблокирован на сайте",
             )
-        if await is_user_banned(session, room_id, auth.user.id):
-            await cache_banned_user(redis, room_id, str(auth.user.id))
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Вы забанены в этой комнате",
-            )
-        if await is_blocked_from_room_admin(session, room.admin_id, auth.user.id):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Владелец комнаты заблокировал вас",
-            )
 
         participant_id = str(auth.user.id)
         display_name = auth.user.username
@@ -269,23 +254,3 @@ async def join_room(
         ws_token=ws_token,
     )
 
-
-@router.post("/{room_id}/ban", status_code=status.HTTP_201_CREATED)
-async def ban_user_endpoint(
-    room_id: str,
-    body: BanUserRequest,
-    session: DbSession,
-    redis: RedisDep,
-    current_user: ActiveUser,
-) -> dict[str, str]:
-    try:
-        ban = await ban_user_in_room(
-            session,
-            redis,
-            room_id=room_id,
-            target_user_id=body.user_id,
-            admin=current_user,
-        )
-    except RoomError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-    return {"id": str(ban.id), "status": "ok"}

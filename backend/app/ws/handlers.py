@@ -11,7 +11,6 @@ from app.services.redis_room_service import (
     get_chat_history,
     get_player_state,
     get_queues,
-    is_banned_in_redis,
     is_participant_muted,
     list_participants,
     mute_participant,
@@ -25,7 +24,7 @@ from app.services.redis_room_service import (
 )
 from app.ws import messages as M
 from app.ws.connection_manager import manager
-from app.ws.internal_client import persist_ban, record_video_history
+from app.ws.internal_client import record_video_history
 
 
 class WsHandlerContext:
@@ -289,38 +288,6 @@ async def handle_moderation(ctx: WsHandlerContext, payload: dict[str, Any]) -> N
             ctx.room_id,
             f"{ctx.display_name} исключил {target_name} из комнаты",
             event="user_kicked",
-            actor_display_name=ctx.display_name,
-        )
-        await _broadcast_participants(ctx.room_id)
-        return
-
-    if action == M.MOD_BAN:
-        participants = await list_participants(redis, ctx.room_id)
-        target = next((p for p in participants if p.get("id") == target_id), None)
-        if target is None:
-            await _send_error(ctx, "Участник не найден")
-            return
-        if target.get("is_guest"):
-            await _send_error(ctx, "Гостей нельзя банить по user_id — используйте кик")
-            return
-
-        ok = await persist_ban(ctx.room_id, target_id)
-        if not ok:
-            await _send_error(ctx, "Не удалось сохранить бан")
-            return
-
-        target_name = target.get("display_name", "Участник")
-        await remove_participant(redis, ctx.room_id, target_id)
-        await manager.send_json(
-            ctx.room_id,
-            target_id,
-            {"type": M.BANNED, "payload": {"reason": "banned_by_admin"}},
-        )
-        await manager.close_participant(ctx.room_id, target_id, reason="banned")
-        await broadcast_system(
-            ctx.room_id,
-            f"{ctx.display_name} забанил {target_name} в комнате",
-            event="user_banned",
             actor_display_name=ctx.display_name,
         )
         await _broadcast_participants(ctx.room_id)

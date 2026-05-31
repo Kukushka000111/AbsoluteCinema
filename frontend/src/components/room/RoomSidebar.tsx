@@ -1,10 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { apiFetch } from "../../api/client";
-import { useAuth } from "../../context/AuthContext";
 import type { ChatMessage, Participant, QueueItem } from "../../types/room";
 import { profilePath } from "../../lib/links";
-import ParticipantRow, { type ParticipantRelation } from "./ParticipantRow";
+import ParticipantRow from "./ParticipantRow";
 
 type Tab = "chat" | "queue" | "users" | "admin";
 
@@ -23,7 +21,6 @@ type Props = {
   currentVideoUrl: string;
   onPlayItem: (item: QueueItem) => void;
   onKick: (targetId: string) => void;
-  onBan: (targetId: string) => void;
   onMute: (targetId: string, mute: boolean) => void;
   onGatherAll: () => void;
   roomName?: string;
@@ -352,46 +349,12 @@ function UsersTab({
   participantId,
   participants,
   onKick,
-  onBan,
   onMute,
   onGatherAll,
 }: Pick<
   Props,
-  "isAdmin" | "participantId" | "participants" | "onKick" | "onBan" | "onMute" | "onGatherAll"
+  "isAdmin" | "participantId" | "participants" | "onKick" | "onMute" | "onGatherAll"
 >) {
-  const { user } = useAuth();
-  const [relations, setRelations] = useState<Record<string, ParticipantRelation>>({});
-
-  const usernamesKey = useMemo(
-    () =>
-      participants
-        .filter((p) => p.username && !p.is_guest && p.id !== participantId)
-        .map((p) => p.username!)
-        .sort()
-        .join(","),
-    [participantId, participants],
-  );
-
-  useEffect(() => {
-    if (!user || !usernamesKey) {
-      setRelations({});
-      return;
-    }
-    let cancelled = false;
-    apiFetch<Record<string, ParticipantRelation>>(
-      `/profile/relations?usernames=${encodeURIComponent(usernamesKey)}`,
-    )
-      .then((data) => {
-        if (!cancelled) {setRelations(data);}
-      })
-      .catch(() => {
-        if (!cancelled) {setRelations({});}
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user, usernamesKey]);
-
   return (
     <div className="space-y-2 text-sm">
       {isAdmin && (
@@ -410,12 +373,7 @@ function UsersTab({
             participant={p}
             participantId={participantId}
             isAdmin={isAdmin}
-            relation={p.username ? relations[p.username] ?? null : null}
-            onRelationChange={(username, relation) =>
-              setRelations((prev) => ({ ...prev, [username]: relation }))
-            }
             onKick={onKick}
-            onBan={onBan}
             onMute={onMute}
           />
         ))}

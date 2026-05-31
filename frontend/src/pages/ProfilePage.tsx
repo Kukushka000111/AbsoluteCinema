@@ -13,6 +13,7 @@ import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { joinRoomById } from "../lib/joinRoom";
 import { editProfilePath, roomPath } from "../lib/links";
+import { normalizeTelegramUrl, normalizeVkUrl } from "../lib/socialLinks";
 
 export default function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -24,8 +25,6 @@ export default function ProfilePage() {
   const [watchHistory, setWatchHistory] = useState<WatchHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [followLoading, setFollowLoading] = useState(false);
-  const [blockLoading, setBlockLoading] = useState(false);
 
   const loadProfile = useCallback(async () => {
     if (!username) {return;}
@@ -59,56 +58,6 @@ export default function ProfilePage() {
       .finally(() => setLoading(false));
   }, [loadProfile, username]);
 
-  const handleFollow = async () => {
-    if (!profile || !user) {
-      navigate("/login");
-      return;
-    }
-    setFollowLoading(true);
-    try {
-      const method = profile.is_following ? "DELETE" : "POST";
-      const result = await apiFetch<{ is_following: boolean; followers_count: number }>(
-        `/profile/${encodeURIComponent(profile.username)}/follow`,
-        { method },
-      );
-      setProfile((prev) =>
-        prev
-          ? { ...prev, is_following: result.is_following, followers_count: result.followers_count }
-          : prev,
-      );
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Ошибка подписки", "error");
-    } finally {
-      setFollowLoading(false);
-    }
-  };
-
-  const handleBlock = async () => {
-    if (!profile || !user) {
-      navigate("/login");
-      return;
-    }
-    setBlockLoading(true);
-    try {
-      const method = profile.is_blocked ? "DELETE" : "POST";
-      const result = await apiFetch<{ is_blocked: boolean }>(
-        `/profile/${encodeURIComponent(profile.username)}/block`,
-        { method },
-      );
-      setProfile((prev) => (prev ? { ...prev, is_blocked: result.is_blocked } : prev));
-      toast(
-        result.is_blocked
-          ? `${profile.username} заблокирован — не сможет войти в ваши комнаты`
-          : "Пользователь разблокирован",
-        "success",
-      );
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Ошибка блокировки", "error");
-    } finally {
-      setBlockLoading(false);
-    }
-  };
-
   const handleJoin = async (roomId: string) => {
     try {
       await joinRoomById(roomId, Boolean(user));
@@ -133,9 +82,9 @@ export default function ProfilePage() {
     );
   }
 
-  const hasLinks =
-    profile.can_view_full &&
-    (profile.links.telegram || profile.links.vk || profile.links.twitch);
+  const telegramUrl = normalizeTelegramUrl(profile.links.telegram);
+  const vkUrl = normalizeVkUrl(profile.links.vk);
+  const hasLinks = profile.can_view_full && (telegramUrl || vkUrl);
 
   return (
     <div className="space-y-8">
@@ -146,46 +95,20 @@ export default function ProfilePage() {
             <p className="mt-1 text-sm text-fastwatch-muted">
               На сайте с {formatMemberSince(profile.created_at)}
             </p>
-            <p className="mt-2 text-xs text-fastwatch-muted">
-              {profile.followers_count} подписчиков · {profile.following_count} подписок
-            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {profile.is_own_profile ? (
-              <Link
-                to={editProfilePath()}
-                className="rounded-lg bg-fastwatch-accent px-4 py-2 text-sm font-medium text-white hover:bg-fastwatch-accentDark"
-              >
-                Редактировать
-              </Link>
-            ) : user ? (
-              <>
-                <button
-                  type="button"
-                  disabled={followLoading}
-                  onClick={handleFollow}
-                  className="rounded-lg border border-fastwatch-accent/50 px-4 py-2 text-sm font-medium text-fastwatch-accent hover:bg-fastwatch-accent/10 disabled:opacity-50"
-                >
-                  {profile.is_following ? "Отписаться" : "Подписаться"}
-                </button>
-                <button
-                  type="button"
-                  disabled={blockLoading}
-                  onClick={handleBlock}
-                  className="rounded-lg border border-orange-400/40 px-4 py-2 text-sm font-medium text-orange-200 hover:bg-orange-400/10 disabled:opacity-50"
-                >
-                  {profile.is_blocked ? "Разблокировать" : "Заблокировать"}
-                </button>
-              </>
-            ) : null}
-          </div>
+          {profile.is_own_profile && (
+            <Link
+              to={editProfilePath()}
+              className="rounded-lg bg-fastwatch-accent px-4 py-2 text-sm font-medium text-white hover:bg-fastwatch-accentDark"
+            >
+              Редактировать
+            </Link>
+          )}
         </div>
 
         {!profile.can_view_full && (
           <p className="mt-4 rounded-lg border border-white/10 bg-fastwatch-bg px-4 py-3 text-sm text-fastwatch-muted">
-            {profile.profile_visibility === "hidden"
-              ? "Профиль скрыт. Виден только ник."
-              : "Полный профиль доступен только подписчикам."}
+            Профиль скрыт. Виден только ник.
           </p>
         )}
 
@@ -222,13 +145,8 @@ export default function ProfilePage() {
 
         {hasLinks && (
           <div className="mt-4 flex flex-wrap gap-2">
-            {profile.links.telegram && (
-              <SocialLink href={profile.links.telegram} label="Telegram" />
-            )}
-            {profile.links.vk && <SocialLink href={profile.links.vk} label="VK" />}
-            {profile.links.twitch && (
-              <SocialLink href={profile.links.twitch} label="Twitch" />
-            )}
+            {telegramUrl && <SocialLink href={telegramUrl} label="Telegram" />}
+            {vkUrl && <SocialLink href={vkUrl} label="VK" />}
           </div>
         )}
       </section>
@@ -308,10 +226,9 @@ export default function ProfilePage() {
 }
 
 function SocialLink({ href, label }: { href: string; label: string }) {
-  const url = href.startsWith("http") ? href : `https://${href}`;
   return (
     <a
-      href={url}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       className="rounded-full border border-white/10 px-3 py-1 text-xs font-medium text-fastwatch-muted transition hover:border-fastwatch-accent/50 hover:text-white"

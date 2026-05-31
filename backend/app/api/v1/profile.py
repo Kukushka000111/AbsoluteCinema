@@ -1,27 +1,14 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status
 
-from app.api.deps import ActiveUser, CurrentUser, DbSession, OptionalAuth, RedisDep
-from app.schemas.profile import (
-    BlockStatus,
-    FollowStatus,
-    ProfileMe,
-    ProfilePublic,
-    ProfileRelationStatus,
-    ProfileUpdate,
-    WatchHistoryEntry,
-)
+from app.api.deps import ActiveUser, CurrentUser, DbSession, RedisDep, OptionalAuth
+from app.schemas.profile import ProfileMe, ProfilePublic, ProfileUpdate, WatchHistoryEntry
 from app.schemas.room import RoomPublic
 from app.services.profile_service import (
     ProfileError,
-    block_user,
     build_profile_me,
     build_public_profile,
-    follow_user,
-    get_profile_relations_batch,
     get_user_by_username_or_404,
     get_user_watch_history,
-    unblock_user,
-    unfollow_user,
     update_profile,
 )
 from app.services.room_service import build_room_public, list_admin_rooms
@@ -54,7 +41,6 @@ async def patch_my_profile(
             tags=payload.tags,
             link_telegram=payload.link_telegram,
             link_vk=payload.link_vk,
-            link_twitch=payload.link_twitch,
             profile_visibility=payload.profile_visibility,
             email=payload.email,
         )
@@ -88,20 +74,6 @@ async def get_my_watch_history(
     return [WatchHistoryEntry.model_validate(e) for e in entries]
 
 
-@router.get("/relations", response_model=dict[str, ProfileRelationStatus])
-async def get_profile_relations(
-    session: DbSession,
-    current_user: ActiveUser,
-    usernames: str = Query(..., min_length=1),
-) -> dict[str, ProfileRelationStatus]:
-    names = [part.strip() for part in usernames.split(",") if part.strip()]
-    relations = await get_profile_relations_batch(session, current_user, names)
-    return {
-        username: ProfileRelationStatus.model_validate(status)
-        for username, status in relations.items()
-    }
-
-
 @router.get("/{username}", response_model=ProfilePublic)
 async def get_user_profile(
     username: str,
@@ -121,63 +93,3 @@ async def get_user_profile(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     return ProfilePublic.model_validate(data)
-
-
-@router.post("/{username}/follow", response_model=FollowStatus)
-async def follow_user_endpoint(
-    username: str,
-    session: DbSession,
-    current_user: ActiveUser,
-) -> FollowStatus:
-    try:
-        target = await get_user_by_username_or_404(session, username)
-        is_following, followers_count = await follow_user(session, current_user, target)
-    except ProfileError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-
-    return FollowStatus(is_following=is_following, followers_count=followers_count)
-
-
-@router.delete("/{username}/follow", response_model=FollowStatus)
-async def unfollow_user_endpoint(
-    username: str,
-    session: DbSession,
-    current_user: ActiveUser,
-) -> FollowStatus:
-    try:
-        target = await get_user_by_username_or_404(session, username)
-        is_following, followers_count = await unfollow_user(session, current_user, target)
-    except ProfileError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-
-    return FollowStatus(is_following=is_following, followers_count=followers_count)
-
-
-@router.post("/{username}/block", response_model=BlockStatus)
-async def block_user_endpoint(
-    username: str,
-    session: DbSession,
-    current_user: ActiveUser,
-) -> BlockStatus:
-    try:
-        target = await get_user_by_username_or_404(session, username)
-        is_blocked = await block_user(session, current_user, target)
-    except ProfileError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-
-    return BlockStatus(is_blocked=is_blocked)
-
-
-@router.delete("/{username}/block", response_model=BlockStatus)
-async def unblock_user_endpoint(
-    username: str,
-    session: DbSession,
-    current_user: ActiveUser,
-) -> BlockStatus:
-    try:
-        target = await get_user_by_username_or_404(session, username)
-        is_blocked = await unblock_user(session, current_user, target)
-    except ProfileError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-
-    return BlockStatus(is_blocked=is_blocked)

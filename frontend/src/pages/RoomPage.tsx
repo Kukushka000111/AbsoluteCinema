@@ -17,7 +17,6 @@ import {
 import type { ChatMessage, Participant, PlayerState, QueueItem } from "../types/room";
 import { getEffectiveTime, parseChatHistory } from "../types/room";
 import { useToast } from "../context/ToastContext";
-import { copyRoomLink } from "../lib/links";
 
 const MOBILE_TABS: { id: RoomSidebarTab; label: string; icon: string }[] = [
   { id: "chat", label: "Чат", icon: "💬" },
@@ -166,11 +165,8 @@ export default function RoomPage() {
 
   const handleWs = useCallback(
     (msg: WsMessage) => {
-      if (msg.type === "KICKED" || msg.type === "BANNED") {
-        toast(
-          msg.type === "BANNED" ? "Вы забанены в этой комнате" : "Вас исключили из комнаты",
-          "error",
-        );
+      if (msg.type === "KICKED") {
+        toast("Вас исключили из комнаты", "error");
         if (roomId) {removeRoomSession(roomId);}
         navigate("/");
         return;
@@ -306,12 +302,6 @@ export default function RoomPage() {
     if (next && next.url !== playerState.video_url) {playFromQueue(next);}
   };
 
-  const handleCopyLink = async () => {
-    if (!roomId) {return;}
-    const ok = await copyRoomLink(roomId);
-    toast(ok ? "Ссылка приглашения скопирована" : "Ошибка копирования", ok ? "success" : "error");
-  };
-
   const handleUpdateRoom = async (newName: string, newTags: string[], isPrivate: boolean) => {
     if (!roomId || !session.isAdmin) {return;}
     try {
@@ -378,7 +368,6 @@ export default function RoomPage() {
       wsSend("QUEUE_UPDATE", { action: "REMOVE", queue, index }),
     onReorderMain: (items: QueueItem[]) => wsSend("QUEUE_UPDATE", { action: "REORDER_MAIN", items }),
     onKick: (targetId: string) => wsSend("ROOM_MODERATION", { action: "KICK", target_id: targetId }),
-    onBan: (targetId: string) => wsSend("ROOM_MODERATION", { action: "BAN", target_id: targetId }),
     onMute: (targetId: string, mute: boolean) =>
       wsSend("ROOM_MODERATION", {
         action: mute ? "MUTE" : "UNMUTE",
@@ -427,13 +416,6 @@ export default function RoomPage() {
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={handleCopyLink}
-            className="rounded-lg border border-white/20 px-2.5 py-1.5 text-xs hover:bg-white/5 sm:px-3 sm:text-sm"
-          >
-            Ссылка
-          </button>
           {session.isAdmin && queues.main[0] && !playerState.video_url && (
             <button
               type="button"

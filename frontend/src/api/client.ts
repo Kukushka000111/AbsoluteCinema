@@ -103,12 +103,11 @@ export interface GuestSession {
   display_name: string;
 }
 
-export type ProfileVisibility = "public" | "subscribers" | "hidden";
+export type ProfileVisibility = "public" | "hidden";
 
 export interface ProfileLinks {
   telegram: string | null;
   vk: string | null;
-  twitch: string | null;
 }
 
 export interface WatchingNow {
@@ -130,10 +129,6 @@ export interface ProfilePublic {
   links: ProfileLinks;
   profile_visibility: ProfileVisibility;
   is_own_profile: boolean;
-  is_following: boolean;
-  is_blocked: boolean;
-  followers_count: number;
-  following_count: number;
   can_view_full: boolean;
   watching_now: WatchingNow | null;
   recent_rooms: RecentRoomVisit[];
@@ -148,8 +143,6 @@ export interface ProfileMe {
   links: ProfileLinks;
   profile_visibility: ProfileVisibility;
   created_at: string;
-  followers_count: number;
-  following_count: number;
   watching_now: WatchingNow | null;
 }
 
@@ -158,7 +151,6 @@ export interface ProfileUpdate {
   tags?: string[];
   link_telegram?: string | null;
   link_vk?: string | null;
-  link_twitch?: string | null;
   profile_visibility?: ProfileVisibility;
   email?: string | null;
 }

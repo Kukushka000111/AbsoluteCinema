@@ -9,7 +9,6 @@ from app.services.redis_room_service import (
     add_participant,
     get_ws_session,
     hydrate_room_redis,
-    is_banned_in_redis,
     remove_participant,
 )
 from app.ws.connection_manager import manager
@@ -51,11 +50,6 @@ async def room_websocket(
         return
 
     participant_id = session["participant_id"]
-    if not session.get("is_guest") and await is_banned_in_redis(
-        redis, room_id, participant_id
-    ):
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="banned")
-        return
 
     await hydrate_room_redis(redis, room_id)
     await websocket.accept()

@@ -5,13 +5,12 @@ from pydantic import BaseModel, Field
 
 from app.schemas.room import RoomHistoryItem
 
-ProfileVisibility = Literal["public", "subscribers", "hidden"]
+ProfileVisibility = Literal["public", "hidden"]
 
 
 class ProfileLinks(BaseModel):
     telegram: str | None = None
     vk: str | None = None
-    twitch: str | None = None
 
 
 class WatchingNow(BaseModel):
@@ -33,10 +32,6 @@ class ProfilePublic(BaseModel):
     links: ProfileLinks = Field(default_factory=ProfileLinks)
     profile_visibility: ProfileVisibility
     is_own_profile: bool = False
-    is_following: bool = False
-    is_blocked: bool = False
-    followers_count: int = 0
-    following_count: int = 0
     can_view_full: bool = True
     watching_now: WatchingNow | None = None
     recent_rooms: list[RecentRoomVisit] = Field(default_factory=list)
@@ -51,8 +46,6 @@ class ProfileMe(BaseModel):
     links: ProfileLinks = Field(default_factory=ProfileLinks)
     profile_visibility: ProfileVisibility
     created_at: datetime
-    followers_count: int = 0
-    following_count: int = 0
     watching_now: WatchingNow | None = None
 
 
@@ -61,23 +54,8 @@ class ProfileUpdate(BaseModel):
     tags: list[str] | None = None
     link_telegram: str | None = Field(default=None, max_length=255)
     link_vk: str | None = Field(default=None, max_length=255)
-    link_twitch: str | None = Field(default=None, max_length=255)
     profile_visibility: ProfileVisibility | None = None
     email: str | None = Field(default=None, max_length=255)
-
-
-class FollowStatus(BaseModel):
-    is_following: bool
-    followers_count: int
-
-
-class BlockStatus(BaseModel):
-    is_blocked: bool
-
-
-class ProfileRelationStatus(BaseModel):
-    is_following: bool = False
-    is_blocked: bool = False
 
 
 class WatchHistoryEntry(RoomHistoryItem):

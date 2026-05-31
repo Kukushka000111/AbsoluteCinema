@@ -7,6 +7,7 @@ import { VISIBILITY_LABELS } from "../lib/profileFormat";
 import { profilePath } from "../lib/links";
 
 const SUGGESTED_TAGS = ["кино", "аниме", "музыка", "стримы", "сериалы", "мультфильмы"];
+const VISIBILITY_OPTIONS: ProfileVisibility[] = ["public", "hidden"];
 
 export default function EditProfilePage() {
   const { user, loading, refreshMe } = useAuth();
@@ -17,7 +18,6 @@ export default function EditProfilePage() {
   const [tags, setTags] = useState("");
   const [telegram, setTelegram] = useState("");
   const [vk, setVk] = useState("");
-  const [twitch, setTwitch] = useState("");
   const [email, setEmail] = useState("");
   const [visibility, setVisibility] = useState<ProfileVisibility>("public");
   const [saving, setSaving] = useState(false);
@@ -32,9 +32,8 @@ export default function EditProfilePage() {
         setTags(data.tags.join(", "));
         setTelegram(data.links.telegram ?? "");
         setVk(data.links.vk ?? "");
-        setTwitch(data.links.twitch ?? "");
         setEmail(data.email ?? "");
-        setVisibility(data.profile_visibility);
+        setVisibility(data.profile_visibility === "hidden" ? "hidden" : "public");
       })
       .catch((err: Error) => toast(err.message, "error"))
       .finally(() => setFetching(false));
@@ -60,7 +59,6 @@ export default function EditProfilePage() {
           .filter(Boolean),
         link_telegram: telegram.trim() || null,
         link_vk: vk.trim() || null,
-        link_twitch: twitch.trim() || null,
         email: email.trim() || null,
         profile_visibility: visibility,
       };
@@ -130,11 +128,15 @@ export default function EditProfilePage() {
         </section>
 
         <section className="rounded-xl border border-white/10 bg-fastwatch-panel p-5 sm:p-6">
-          <h2 className="mb-4 text-lg font-semibold">Ссылки для приглашений</h2>
+          <h2 className="mb-4 text-lg font-semibold">Ссылки</h2>
           <div className="space-y-3">
-            <Field label="Telegram" value={telegram} onChange={setTelegram} placeholder="https://t.me/username" />
-            <Field label="VK" value={vk} onChange={setVk} placeholder="https://vk.com/username" />
-            <Field label="Twitch" value={twitch} onChange={setTwitch} placeholder="https://twitch.tv/username" />
+            <Field
+              label="Telegram"
+              value={telegram}
+              onChange={setTelegram}
+              placeholder="@username или https://t.me/username"
+            />
+            <Field label="VK" value={vk} onChange={setVk} placeholder="@username или https://vk.com/username" />
           </div>
         </section>
 
@@ -149,7 +151,7 @@ export default function EditProfilePage() {
           />
           <label className="mb-2 mt-4 block text-sm font-medium">Кто видит профиль</label>
           <div className="space-y-2">
-            {(Object.keys(VISIBILITY_LABELS) as ProfileVisibility[]).map((key) => (
+            {VISIBILITY_OPTIONS.map((key) => (
               <label
                 key={key}
                 className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 ${
@@ -169,7 +171,6 @@ export default function EditProfilePage() {
                   <span className="block text-sm font-medium">{VISIBILITY_LABELS[key]}</span>
                   <span className="text-xs text-fastwatch-muted">
                     {key === "public" && "Описание, теги и активность видны всем"}
-                    {key === "subscribers" && "Полный профиль только для подписчиков"}
                     {key === "hidden" && "Другим виден только ник"}
                   </span>
                 </span>

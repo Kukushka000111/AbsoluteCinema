@@ -17,6 +17,5 @@ export function formatDateTime(iso: string): string {
 
 export const VISIBILITY_LABELS: Record<string, string> = {
   public: "Публичный",
-  subscribers: "Только подписчики",
   hidden: "Скрытый",
 };
