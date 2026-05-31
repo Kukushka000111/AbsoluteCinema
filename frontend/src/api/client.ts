@@ -124,7 +124,6 @@ export interface RecentRoomVisit {
 
 export interface ProfilePublic {
   username: string;
-  avatar_url: string;
   created_at: string;
   bio: string | null;
   tags: string[];
@@ -138,14 +137,12 @@ export interface ProfilePublic {
   can_view_full: boolean;
   watching_now: WatchingNow | null;
   recent_rooms: RecentRoomVisit[];
-  public_rooms: RoomPublic[];
 }
 
 export interface ProfileMe {
   id: string;
   username: string;
   email: string | null;
-  avatar_url: string;
   bio: string | null;
   tags: string[];
   links: ProfileLinks;
@@ -159,7 +156,6 @@ export interface ProfileMe {
 export interface ProfileUpdate {
   bio?: string | null;
   tags?: string[];
-  avatar_url?: string | null;
   link_telegram?: string | null;
   link_vk?: string | null;
   link_twitch?: string | null;
@@ -212,18 +208,4 @@ export async function ensureGuestSession(): Promise<GuestSession> {
   const session = await apiFetch<GuestSession>("/auth/guest", { method: "POST" });
   saveGuestSession(session);
   return session;
-}
-
-export async function uploadAvatar(file: File): Promise<ProfileMe> {
-  const form = new FormData();
-  form.append("file", file);
-  const res = await fetch(`${API_BASE}/profile/me/avatar`, {
-    method: "POST",
-    credentials: "include",
-    body: form,
-  });
-  if (!res.ok) {
-    throw new ApiError(await parseError(res), res.status);
-  }
-  return res.json() as Promise<ProfileMe>;
 }

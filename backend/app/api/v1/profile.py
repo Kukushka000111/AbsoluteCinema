@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, HTTPException, status
 
 from app.api.deps import ActiveUser, CurrentUser, DbSession, OptionalAuth, RedisDep
 from app.schemas.profile import (
@@ -10,7 +10,6 @@ from app.schemas.profile import (
     WatchHistoryEntry,
 )
 from app.schemas.room import RoomPublic
-from app.services.avatar_service import AvatarError, save_user_avatar
 from app.services.profile_service import (
     ProfileError,
     block_user,
@@ -51,7 +50,6 @@ async def patch_my_profile(
             current_user,
             bio=payload.bio,
             tags=payload.tags,
-            avatar_url=payload.avatar_url,
             link_telegram=payload.link_telegram,
             link_vk=payload.link_vk,
             link_twitch=payload.link_twitch,
@@ -137,25 +135,6 @@ async def unfollow_user_endpoint(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     return FollowStatus(is_following=is_following, followers_count=followers_count)
-
-
-@router.post("/me/avatar", response_model=ProfileMe)
-async def upload_avatar(
-    session: DbSession,
-    redis: RedisDep,
-    current_user: ActiveUser,
-    file: UploadFile = File(...),
-) -> ProfileMe:
-    try:
-        avatar_url = await save_user_avatar(current_user, file)
-        current_user.avatar_url = avatar_url
-        await session.flush()
-        await session.refresh(current_user)
-    except AvatarError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-
-    data = await build_profile_me(session, redis, current_user)
-    return ProfileMe.model_validate(data)
 
 
 @router.post("/{username}/block", response_model=BlockStatus)

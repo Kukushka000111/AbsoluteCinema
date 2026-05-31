@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.room import RoomPublic, RoomHistoryItem
+from app.schemas.room import RoomHistoryItem
 
 ProfileVisibility = Literal["public", "subscribers", "hidden"]
 
@@ -27,7 +27,6 @@ class RecentRoomVisit(BaseModel):
 
 class ProfilePublic(BaseModel):
     username: str
-    avatar_url: str
     created_at: datetime
     bio: str | None = None
     tags: list[str] = Field(default_factory=list)
@@ -41,14 +40,12 @@ class ProfilePublic(BaseModel):
     can_view_full: bool = True
     watching_now: WatchingNow | None = None
     recent_rooms: list[RecentRoomVisit] = Field(default_factory=list)
-    public_rooms: list[RoomPublic] = Field(default_factory=list)
 
 
 class ProfileMe(BaseModel):
     id: str
     username: str
     email: str | None
-    avatar_url: str
     bio: str | None = None
     tags: list[str] = Field(default_factory=list)
     links: ProfileLinks = Field(default_factory=ProfileLinks)
@@ -62,7 +59,6 @@ class ProfileMe(BaseModel):
 class ProfileUpdate(BaseModel):
     bio: str | None = Field(default=None, max_length=500)
     tags: list[str] | None = None
-    avatar_url: str | None = Field(default=None, max_length=512)
     link_telegram: str | None = Field(default=None, max_length=255)
     link_vk: str | None = Field(default=None, max_length=255)
     link_twitch: str | None = Field(default=None, max_length=255)

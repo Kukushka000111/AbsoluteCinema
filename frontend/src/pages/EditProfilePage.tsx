@@ -1,9 +1,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { apiFetch, type ProfileMe, type ProfileUpdate, type ProfileVisibility, uploadAvatar } from "../api/client";
-import UserAvatar, { VISIBILITY_LABELS } from "../components/UserAvatar";
+import { apiFetch, type ProfileMe, type ProfileUpdate, type ProfileVisibility } from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { VISIBILITY_LABELS } from "../lib/profileFormat";
 import { profilePath } from "../lib/links";
 
 const SUGGESTED_TAGS = ["кино", "аниме", "музыка", "стримы", "сериалы", "мультфильмы"];
@@ -15,8 +15,6 @@ export default function EditProfilePage() {
   const [profile, setProfile] = useState<ProfileMe | null>(null);
   const [bio, setBio] = useState("");
   const [tags, setTags] = useState("");
-  const [avatarUrl, setAvatarUrl] = useState("");
-  const [avatarUploading, setAvatarUploading] = useState(false);
   const [telegram, setTelegram] = useState("");
   const [vk, setVk] = useState("");
   const [twitch, setTwitch] = useState("");
@@ -32,7 +30,6 @@ export default function EditProfilePage() {
         setProfile(data);
         setBio(data.bio ?? "");
         setTags(data.tags.join(", "));
-        setAvatarUrl(data.avatar_url);
         setTelegram(data.links.telegram ?? "");
         setVk(data.links.vk ?? "");
         setTwitch(data.links.twitch ?? "");
@@ -50,29 +47,6 @@ export default function EditProfilePage() {
   if (!user) {
     return <Navigate to="/login" replace state={{ from: "/profile/me/edit" }} />;
   }
-
-  const handleAvatarFile = async (file: File | null) => {
-    if (!file) {return;}
-    if (file.size > 2 * 1024 * 1024) {
-      toast("Максимальный размер — 2 МБ", "error");
-      return;
-    }
-    if (!file.type.startsWith("image/")) {
-      toast("Разрешены только изображения", "error");
-      return;
-    }
-    setAvatarUploading(true);
-    try {
-      const updated = await uploadAvatar(file);
-      setAvatarUrl(updated.avatar_url);
-      await refreshMe();
-      toast("Аватар обновлён", "success");
-    } catch (err) {
-      toast(err instanceof Error ? err.message : "Ошибка загрузки", "error");
-    } finally {
-      setAvatarUploading(false);
-    }
-  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -116,20 +90,6 @@ export default function EditProfilePage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <section className="rounded-xl border border-white/10 bg-fastwatch-panel p-5 sm:p-6">
           <h2 className="mb-4 text-lg font-semibold">Основное</h2>
-          <div className="mb-4 flex items-center gap-4">
-            <UserAvatar username={user.username} avatarUrl={avatarUrl || user.avatar_url} size="md" />
-            <div className="min-w-0 flex-1">
-              <label className="mb-2 block text-sm font-medium">Загрузить аватар</label>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                disabled={avatarUploading}
-                onChange={(e) => void handleAvatarFile(e.target.files?.[0] ?? null)}
-                className="w-full text-sm text-fastwatch-muted file:mr-3 file:rounded-lg file:border-0 file:bg-fastwatch-accent file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-fastwatch-accentDark"
-              />
-              <p className="mt-1 text-xs text-fastwatch-muted">JPEG, PNG, WebP или GIF, до 2 МБ</p>
-            </div>
-          </div>
           <label className="mb-2 block text-sm font-medium">О себе</label>
           <textarea
             value={bio}
@@ -208,9 +168,9 @@ export default function EditProfilePage() {
                 <span>
                   <span className="block text-sm font-medium">{VISIBILITY_LABELS[key]}</span>
                   <span className="text-xs text-fastwatch-muted">
-                    {key === "public" && "Описание, теги, комнаты и активность видны всем"}
+                    {key === "public" && "Описание, теги и активность видны всем"}
                     {key === "subscribers" && "Полный профиль только для подписчиков"}
-                    {key === "hidden" && "Другим видны только ник и аватар"}
+                    {key === "hidden" && "Другим виден только ник"}
                   </span>
                 </span>
               </label>

@@ -18,7 +18,6 @@ from app.models.user_block import UserBlock
 from app.models.user_follow import UserFollow
 from app.models.user_room_visit import UserRoomVisit
 from app.services.auth_service import check_registration_availability
-from app.services.room_service import build_room_public, list_admin_rooms
 from redis.asyncio import Redis
 
 
@@ -215,7 +214,6 @@ async def build_profile_me(
         "id": str(user.id),
         "username": user.username,
         "email": user.email,
-        "avatar_url": user.avatar_url,
         "bio": user.bio,
         "tags": user.tags or [],
         "links": _profile_links(user),
@@ -251,17 +249,11 @@ async def build_public_profile(
         }
 
     recent_rooms: list[dict] = []
-    public_rooms: list[dict] = []
     if can_view_full:
         recent_rooms = await get_recent_room_visits(session, user.id)
-        rooms = await list_admin_rooms(session, user.id)
-        for room in rooms:
-            if not room.is_private:
-                public_rooms.append(await build_room_public(room, redis))
 
     return {
         "username": user.username,
-        "avatar_url": user.avatar_url,
         "created_at": user.created_at,
         "bio": user.bio if can_view_full else None,
         "tags": (user.tags or []) if can_view_full else [],
@@ -275,7 +267,6 @@ async def build_public_profile(
         "can_view_full": can_view_full,
         "watching_now": watching_now,
         "recent_rooms": recent_rooms,
-        "public_rooms": public_rooms,
     }
 
 
@@ -285,7 +276,6 @@ async def update_profile(
     *,
     bio: str | None = None,
     tags: list[str] | None = None,
-    avatar_url: str | None = None,
     link_telegram: str | None = None,
     link_vk: str | None = None,
     link_twitch: str | None = None,
@@ -296,9 +286,6 @@ async def update_profile(
         user.bio = bio.strip() or None
     if tags is not None:
         user.tags = [t.strip().lower() for t in tags if t.strip()][:10]
-    if avatar_url is not None:
-        value = avatar_url.strip()
-        user.avatar_url = value or user.avatar_url
     if link_telegram is not None:
         user.link_telegram = link_telegram.strip() or None
     if link_vk is not None:

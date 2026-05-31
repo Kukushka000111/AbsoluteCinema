@@ -8,7 +8,7 @@ import {
   type WatchHistoryEntry,
 } from "../api/client";
 import RoomCard from "../components/room/RoomCard";
-import UserAvatar, { formatDateTime, formatMemberSince, VISIBILITY_LABELS } from "../components/UserAvatar";
+import { formatDateTime, formatMemberSince, VISIBILITY_LABELS } from "../lib/profileFormat";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { joinRoomById } from "../lib/joinRoom";
@@ -140,102 +140,97 @@ export default function ProfilePage() {
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-white/10 bg-fastwatch-panel p-5 sm:p-8">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-          <UserAvatar username={profile.username} avatarUrl={profile.avatar_url} size="lg" />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h1 className="text-2xl font-bold sm:text-3xl">{profile.username}</h1>
-                <p className="mt-1 text-sm text-fastwatch-muted">
-                  На сайте с {formatMemberSince(profile.created_at)}
-                </p>
-                <p className="mt-2 text-xs text-fastwatch-muted">
-                  {profile.followers_count} подписчиков · {profile.following_count} подписок
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {profile.is_own_profile ? (
-                  <Link
-                    to={editProfilePath()}
-                    className="rounded-lg bg-fastwatch-accent px-4 py-2 text-sm font-medium text-white hover:bg-fastwatch-accentDark"
-                  >
-                    Редактировать
-                  </Link>
-                ) : user ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={followLoading}
-                      onClick={handleFollow}
-                      className="rounded-lg border border-fastwatch-accent/50 px-4 py-2 text-sm font-medium text-fastwatch-accent hover:bg-fastwatch-accent/10 disabled:opacity-50"
-                    >
-                      {profile.is_following ? "Отписаться" : "Подписаться"}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={blockLoading}
-                      onClick={handleBlock}
-                      className="rounded-lg border border-orange-400/40 px-4 py-2 text-sm font-medium text-orange-200 hover:bg-orange-400/10 disabled:opacity-50"
-                    >
-                      {profile.is_blocked ? "Разблокировать" : "Заблокировать"}
-                    </button>
-                  </>
-                ) : null}
-              </div>
-            </div>
-
-            {!profile.can_view_full && (
-              <p className="mt-4 rounded-lg border border-white/10 bg-fastwatch-bg px-4 py-3 text-sm text-fastwatch-muted">
-                {profile.profile_visibility === "hidden"
-                  ? "Профиль скрыт. Видны только имя и аватар."
-                  : "Полный профиль доступен только подписчикам."}
-              </p>
-            )}
-
-            {profile.can_view_full && profile.bio && (
-              <p className="mt-4 text-sm leading-relaxed text-white/90">{profile.bio}</p>
-            )}
-
-            {profile.can_view_full && profile.tags.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {profile.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-fastwatch-accent/20 px-3 py-1 text-xs font-medium text-fastwatch-accent"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {profile.can_view_full && profile.watching_now && (
-              <div className="mt-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-green-200/80">
-                  Сейчас смотрю
-                </p>
-                <Link
-                  to={roomPath(profile.watching_now.room_id)}
-                  className="mt-1 inline-block font-medium text-green-100 hover:underline"
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold sm:text-3xl">{profile.username}</h1>
+            <p className="mt-1 text-sm text-fastwatch-muted">
+              На сайте с {formatMemberSince(profile.created_at)}
+            </p>
+            <p className="mt-2 text-xs text-fastwatch-muted">
+              {profile.followers_count} подписчиков · {profile.following_count} подписок
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {profile.is_own_profile ? (
+              <Link
+                to={editProfilePath()}
+                className="rounded-lg bg-fastwatch-accent px-4 py-2 text-sm font-medium text-white hover:bg-fastwatch-accentDark"
+              >
+                Редактировать
+              </Link>
+            ) : user ? (
+              <>
+                <button
+                  type="button"
+                  disabled={followLoading}
+                  onClick={handleFollow}
+                  className="rounded-lg border border-fastwatch-accent/50 px-4 py-2 text-sm font-medium text-fastwatch-accent hover:bg-fastwatch-accent/10 disabled:opacity-50"
                 >
-                  {profile.watching_now.room_name}
-                </Link>
-              </div>
-            )}
-
-            {hasLinks && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {profile.links.telegram && (
-                  <SocialLink href={profile.links.telegram} label="Telegram" />
-                )}
-                {profile.links.vk && <SocialLink href={profile.links.vk} label="VK" />}
-                {profile.links.twitch && (
-                  <SocialLink href={profile.links.twitch} label="Twitch" />
-                )}
-              </div>
-            )}
+                  {profile.is_following ? "Отписаться" : "Подписаться"}
+                </button>
+                <button
+                  type="button"
+                  disabled={blockLoading}
+                  onClick={handleBlock}
+                  className="rounded-lg border border-orange-400/40 px-4 py-2 text-sm font-medium text-orange-200 hover:bg-orange-400/10 disabled:opacity-50"
+                >
+                  {profile.is_blocked ? "Разблокировать" : "Заблокировать"}
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
+
+        {!profile.can_view_full && (
+          <p className="mt-4 rounded-lg border border-white/10 bg-fastwatch-bg px-4 py-3 text-sm text-fastwatch-muted">
+            {profile.profile_visibility === "hidden"
+              ? "Профиль скрыт. Виден только ник."
+              : "Полный профиль доступен только подписчикам."}
+          </p>
+        )}
+
+        {profile.can_view_full && profile.bio && (
+          <p className="mt-4 text-sm leading-relaxed text-white/90">{profile.bio}</p>
+        )}
+
+        {profile.can_view_full && profile.tags.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {profile.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full bg-fastwatch-accent/20 px-3 py-1 text-xs font-medium text-fastwatch-accent"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {profile.can_view_full && profile.watching_now && (
+          <div className="mt-4 rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-green-200/80">
+              Сейчас смотрю
+            </p>
+            <Link
+              to={roomPath(profile.watching_now.room_id)}
+              className="mt-1 inline-block font-medium text-green-100 hover:underline"
+            >
+              {profile.watching_now.room_name}
+            </Link>
+          </div>
+        )}
+
+        {hasLinks && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {profile.links.telegram && (
+              <SocialLink href={profile.links.telegram} label="Telegram" />
+            )}
+            {profile.links.vk && <SocialLink href={profile.links.vk} label="VK" />}
+            {profile.links.twitch && (
+              <SocialLink href={profile.links.twitch} label="Twitch" />
+            )}
+          </div>
+        )}
       </section>
 
       {profile.can_view_full && profile.recent_rooms.length > 0 && (
@@ -257,17 +252,6 @@ export default function ProfilePage() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
-
-      {profile.can_view_full && profile.public_rooms.length > 0 && (
-        <section>
-          <h2 className="mb-4 text-xl font-bold">Публичные комнаты</h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {profile.public_rooms.map((room) => (
-              <RoomCard key={room.id} room={room} onJoin={handleJoin} />
-            ))}
-          </div>
         </section>
       )}
 
