@@ -108,3 +108,20 @@ async def promote_configured_global_admins(session: AsyncSession) -> None:
         if not user.is_global_admin:
             user.is_global_admin = True
     await session.commit()
+
+
+def is_configured_global_admin(username: str) -> bool:
+    normalized = username.strip().lower()
+    return normalized in {
+        name.strip().lower()
+        for name in get_settings().global_admin_username_list
+    }
+
+
+async def sync_global_admin_for_user(session: AsyncSession, user: User) -> User:
+    """Назначает is_global_admin, если username указан в GLOBAL_ADMIN_USERNAMES."""
+    if is_configured_global_admin(user.username) and not user.is_global_admin:
+        user.is_global_admin = True
+        await session.flush()
+        await session.refresh(user)
+    return user

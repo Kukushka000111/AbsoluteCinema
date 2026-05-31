@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiFetch, type AuthAvailability } from "../api/client";
+import GuestOnlyGate from "../components/GuestOnlyGate";
 import { useAuth } from "../context/AuthContext";
 
 const USERNAME_RE = /^[a-zA-Z0-9_]+$/;
@@ -105,6 +106,7 @@ export default function RegisterPage() {
   };
 
   return (
+    <GuestOnlyGate page="register">
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center">
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-fastwatch-accent/20 bg-fastwatch-panel p-8 sm:p-10">
@@ -176,6 +178,7 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+    </GuestOnlyGate>
   );
 }
 

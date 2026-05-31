@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import GuestOnlyGate from "../components/GuestOnlyGate";
 import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
@@ -26,6 +27,7 @@ export default function LoginPage() {
   };
 
   return (
+    <GuestOnlyGate page="login">
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center">
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-fastwatch-accent/20 bg-fastwatch-panel p-8 sm:p-10">
@@ -87,5 +89,6 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+    </GuestOnlyGate>
   );
 }

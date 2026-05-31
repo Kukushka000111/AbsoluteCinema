@@ -17,7 +17,7 @@ from app.services.auth_service import (
     check_registration_availability,
     register_user,
 )
-from app.services.global_ban_service import build_user_public
+from app.services.global_ban_service import build_user_public, sync_global_admin_for_user
 from app.utils.slug import generate_guest_display_name, generate_guest_id
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -57,6 +57,7 @@ async def register(
         user = await register_user(
             session, payload.username, payload.email, payload.password
         )
+        user = await sync_global_admin_for_user(session, user)
     except AuthError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=exc.message
@@ -86,6 +87,7 @@ async def login(
 ) -> AuthResponse:
     try:
         user = await authenticate_user(session, payload.username, payload.password)
+        user = await sync_global_admin_for_user(session, user)
     except AuthError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message
@@ -105,7 +107,8 @@ async def logout(response: Response) -> dict[str, str]:
 
 @router.get("/me", response_model=UserPublic)
 async def me(current_user: CurrentUser, session: DbSession) -> UserPublic:
-    user_data = await build_user_public(session, current_user)
+    user = await sync_global_admin_for_user(session, current_user)
+    user_data = await build_user_public(session, user)
     return UserPublic.model_validate(user_data)
 
 
