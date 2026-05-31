@@ -179,7 +179,7 @@ function ChatTab({
 }
 
 const SUPPORTED_SOURCES_HINT =
-  "YouTube, Rutube, Vimeo, Twitch, SoundCloud, Facebook, Streamable, Wistia, DailyMotion, Mixcloud, Kaltura, Vidyard, прямые ссылки .mp4 / .webm / .m3u8 (HLS).";
+  "Введите ссылку на видео из YouTube/Rutube";
 
 function QueueTab({
   isAdmin,
