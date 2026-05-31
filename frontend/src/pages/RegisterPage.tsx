@@ -111,7 +111,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <GuestOnlyGate page="register">
+    <GuestOnlyGate>
     <div className="flex min-h-[calc(100vh-200px)] items-center justify-center">
       <div className="w-full max-w-md">
         <div className="rounded-2xl border border-fastwatch-accent/20 bg-fastwatch-panel p-8 sm:p-10">
