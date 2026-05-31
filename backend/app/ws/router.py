@@ -2,6 +2,7 @@ import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 
+from app.core.config import get_settings
 from app.core.redis_client import get_redis
 from app.services.profile_service import clear_user_presence, set_user_presence
 from app.services.redis_room_service import (
@@ -20,15 +21,21 @@ from app.ws.handlers import (
     send_initial_state,
     send_sync_signal,
 )
-from app.ws.internal_client import record_room_visit
 
 router = APIRouter()
+
+
+def _resolve_ws_token(websocket: WebSocket, query_token: str | None) -> str | None:
+    settings = get_settings()
+    cookie_token = websocket.cookies.get(settings.ws_session_cookie_name)
+    return cookie_token or query_token
 
 
 @router.websocket("/ws/rooms/{room_id}")
 async def room_websocket(
     websocket: WebSocket, room_id: str, token: str | None = None
 ) -> None:
+    token = _resolve_ws_token(websocket, token)
     if not token:
         await websocket.close(
             code=status.WS_1008_POLICY_VIOLATION, reason="missing_token"
@@ -75,7 +82,6 @@ async def room_websocket(
                 room_id=room_id,
                 room_name=room_name,
             )
-            await record_room_visit(participant_id, room_id)
         except ValueError:
             pass
 

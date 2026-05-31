@@ -4,7 +4,6 @@ from re import compile as compile_regex
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.security import hash_password, verify_password
 from app.models.user import User
 
@@ -40,12 +39,11 @@ async def register_user(
     if existing_email.scalar_one_or_none():
         raise AuthError("Почта уже занята", "email_taken")
 
-    settings = get_settings()
     user = User(
         username=username,
         email=email,
         password_hash=hash_password(password),
-        avatar_url=settings.default_avatar_url,
+        avatar_url="",
     )
     session.add(user)
     await session.flush()
@@ -58,7 +56,10 @@ async def authenticate_user(
     username: str,
     password: str,
 ) -> User:
-    result = await session.execute(select(User).where(User.username == username))
+    normalized = username.strip()
+    result = await session.execute(
+        select(User).where(func.lower(User.username) == normalized.lower())
+    )
     user = result.scalar_one_or_none()
     if user is None or not verify_password(password, user.password_hash):
         raise AuthError("Неверное имя пользователя или пароль", "invalid_credentials")

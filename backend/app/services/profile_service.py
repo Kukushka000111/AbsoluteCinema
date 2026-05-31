@@ -1,6 +1,6 @@
 import json
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -118,7 +118,7 @@ async def set_user_presence(
     payload = {
         "room_id": room_id,
         "room_name": room_name,
-        "updated_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.now(UTC).isoformat(),
     }
     await redis.set(user_presence_key(str(user_id)), json.dumps(payload), ex=86400)
 
@@ -417,3 +417,49 @@ async def unblock_user(
         await session.delete(link)
         await session.flush()
     return False
+
+
+async def get_profile_relations_batch(
+    session: AsyncSession,
+    viewer: User,
+    usernames: list[str],
+) -> dict[str, dict[str, bool]]:
+    normalized = [name.strip() for name in usernames if name.strip()]
+    if not normalized:
+        return {}
+
+    result = await session.execute(
+        select(User).where(
+            func.lower(User.username).in_([name.lower() for name in normalized])
+        )
+    )
+    users_by_key = {user.username.lower(): user for user in result.scalars()}
+    target_ids = [user.id for user in users_by_key.values() if user.id != viewer.id]
+    if not target_ids:
+        return {}
+
+    following_result = await session.execute(
+        select(UserFollow.following_id).where(
+            UserFollow.follower_id == viewer.id,
+            UserFollow.following_id.in_(target_ids),
+        )
+    )
+    following_ids = {row[0] for row in following_result.all()}
+
+    blocked_result = await session.execute(
+        select(UserBlock.blocked_id).where(
+            UserBlock.blocker_id == viewer.id,
+            UserBlock.blocked_id.in_(target_ids),
+        )
+    )
+    blocked_ids = {row[0] for row in blocked_result.all()}
+
+    relations: dict[str, dict[str, bool]] = {}
+    for user in users_by_key.values():
+        if user.id == viewer.id:
+            continue
+        relations[user.username] = {
+            "is_following": user.id in following_ids,
+            "is_blocked": user.id in blocked_ids,
+        }
+    return relations

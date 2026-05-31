@@ -19,7 +19,12 @@ export default function OpenRoomsPage() {
 
   const loadRooms = useCallback(async (q = "") => {
     const params = new URLSearchParams();
-    if (q.trim()) {params.set("q", q.trim());}
+    const trimmed = q.trim();
+    if (trimmed.startsWith("#")) {
+      params.set("tags", trimmed.slice(1).toLowerCase());
+    } else if (trimmed) {
+      params.set("q", trimmed);
+    }
     const data = await apiFetch<LobbyListResponse>(`/lobby/rooms?${params}`);
     setRooms(data.items);
   }, []);
@@ -54,7 +59,7 @@ export default function OpenRoomsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Название или тег"
+            placeholder="Название или #тег"
             className="w-full rounded-lg border border-white/10 bg-fastwatch-panel px-4 py-3 focus:border-fastwatch-accent focus:outline-none"
           />
         </div>

@@ -28,6 +28,8 @@ export default function AdminPage() {
   const [editName, setEditName] = useState("");
   const [editPrivate, setEditPrivate] = useState(false);
 
+  const [editTags, setEditTags] = useState("");
+
   const loadData = useCallback(async (q = "") => {
     const params = new URLSearchParams();
     if (q.trim()) {params.set("q", q.trim());}
@@ -93,6 +95,7 @@ export default function AdminPage() {
     setEditingRoomId(room.id);
     setEditName(room.name);
     setEditPrivate(room.is_private);
+    setEditTags((room.tags ?? []).join(", "));
   };
 
   const cancelEditRoom = () => {
@@ -100,9 +103,14 @@ export default function AdminPage() {
   };
 
   const saveRoom = async (roomId: string) => {
+    const tags = editTags
+      .split(",")
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean);
     const payload: AdminRoomUpdate = {
       name: editName.trim() || undefined,
       is_private: editPrivate,
+      tags,
     };
     try {
       await apiFetch<RoomPublic>(`/admin/rooms/${roomId}`, {
@@ -228,13 +236,19 @@ export default function AdminPage() {
                       onChange={(e) => setEditName(e.target.value)}
                       className="w-full rounded-lg border border-white/10 bg-fastwatch-bg px-3 py-2 text-sm focus:border-fastwatch-accent focus:outline-none"
                     />
+                    <input
+                      value={editTags}
+                      onChange={(e) => setEditTags(e.target.value)}
+                      placeholder="Теги: кино, музыка"
+                      className="w-full rounded-lg border border-white/10 bg-fastwatch-bg px-3 py-2 text-sm focus:border-fastwatch-accent focus:outline-none"
+                    />
                     <label className="flex items-center gap-2 text-sm">
                       <input
                         type="checkbox"
                         checked={editPrivate}
                         onChange={(e) => setEditPrivate(e.target.checked)}
                       />
-                      Приватная комната
+                      Скрытая комната
                     </label>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -260,7 +274,7 @@ export default function AdminPage() {
                         {room.name}
                       </Link>
                       <p className="text-xs text-fastwatch-muted">
-                        {room.is_private ? "Приватная" : "Открытая"} · админ {room.admin.username} · онлайн {room.online_count}
+                        {room.is_private ? "Скрытая" : "Открытая"} · админ {room.admin.username} · онлайн {room.online_count}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">

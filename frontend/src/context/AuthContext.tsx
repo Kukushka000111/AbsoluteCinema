@@ -11,7 +11,6 @@ import {
   apiFetch,
   ensureGuestSession,
   loadGuestSession,
-  saveGuestSession,
   type GuestSession,
   type UserPublic,
 } from "../api/client";
@@ -23,7 +22,6 @@ interface AuthContextValue {
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  enterAsGuest: () => Promise<void>;
   refreshMe: () => Promise<UserPublic | null>;
 }
 
@@ -138,14 +136,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const enterAsGuest = useCallback(async () => {
-    const session = await ensureGuestSession();
-    setGuest(session);
-    setUser(null);
-    await apiFetch("/auth/logout", { method: "POST" }).catch(() => undefined);
-    notifyAuthChanged();
-  }, []);
-
   const value = useMemo(
     () => ({
       user,
@@ -154,10 +144,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
-      enterAsGuest,
       refreshMe,
     }),
-    [user, guest, loading, login, register, logout, enterAsGuest, refreshMe],
+    [user, guest, loading, login, register, logout, refreshMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -168,5 +157,3 @@ export function useAuth() {
   if (!ctx) {throw new Error("useAuth must be used within AuthProvider");}
   return ctx;
 }
-
-export { saveGuestSession };

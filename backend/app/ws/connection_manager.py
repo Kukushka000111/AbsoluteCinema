@@ -79,5 +79,44 @@ class ConnectionManager:
                 pass
         await self.disconnect(room_id, participant_id)
 
+    async def close_room(
+        self,
+        room_id: str,
+        *,
+        code: int = 4000,
+        reason: str = "room_closed",
+    ) -> None:
+        participants = self.room_participant_ids(room_id)
+        for participant_id in participants:
+            await self.send_json(
+                room_id,
+                participant_id,
+                {"type": "ROOM_CLOSED", "payload": {"reason": reason}},
+            )
+            await self.close_participant(
+                room_id, participant_id, code=code, reason=reason
+            )
+
+    async def close_user_everywhere(
+        self,
+        user_id: str,
+        *,
+        code: int = 4000,
+        reason: str = "globally_banned",
+        message: str | None = None,
+    ) -> None:
+        payload = {"reason": reason}
+        if message:
+            payload["message"] = message
+        for room_id in list(self._connections.keys()):
+            if user_id not in self._connections.get(room_id, {}):
+                continue
+            await self.send_json(
+                room_id,
+                user_id,
+                {"type": "GLOBALLY_BANNED", "payload": payload},
+            )
+            await self.close_participant(room_id, user_id, code=code, reason=reason)
+
 
 manager = ConnectionManager()

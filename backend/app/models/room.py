@@ -34,6 +34,12 @@ class Room(Base):
         server_default=func.now(),
         nullable=False,
     )
+    last_activity_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+        index=True,
+    )
 
     admin: Mapped["User"] = relationship(
         "User",

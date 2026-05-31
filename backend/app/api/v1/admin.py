@@ -18,6 +18,7 @@ from app.services.room_service import (
     list_all_rooms,
     update_room,
 )
+from app.services.ws_control_service import notify_room_closed, notify_user_globally_banned
 from app.ws.handlers import broadcast_room_update, broadcast_system
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -43,6 +44,7 @@ async def ban_user(
     username: str,
     body: GlobalBanRequest,
     session: DbSession,
+    redis: RedisDep,
     admin: GlobalAdmin,
 ) -> GlobalBanItem:
     try:
@@ -57,6 +59,10 @@ async def ban_user(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     except GlobalBanError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+    await notify_user_globally_banned(
+        redis, str(target.id), reason=body.reason
+    )
 
     return GlobalBanItem(
         user_id=ban.user_id,
@@ -157,5 +163,6 @@ async def admin_delete_room(
     try:
         room = await get_room_or_404(session, room_id)
         await delete_room(session, redis, room, admin)
+        await notify_room_closed(redis, room_id)
     except RoomError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

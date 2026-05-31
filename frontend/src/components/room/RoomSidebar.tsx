@@ -1,8 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { apiFetch } from "../../api/client";
+import { useAuth } from "../../context/AuthContext";
 import type { ChatMessage, Participant, QueueItem } from "../../types/room";
 import { profilePath } from "../../lib/links";
-import ParticipantRow from "./ParticipantRow";
+import ParticipantRow, { type ParticipantRelation } from "./ParticipantRow";
 
 type Tab = "chat" | "queue" | "users" | "admin";
 
@@ -28,6 +30,8 @@ type Props = {
   roomTags?: string[];
   roomIsPrivate?: boolean;
   onUpdateRoom?: (name: string, tags: string[], isPrivate: boolean) => void;
+  onDeleteRoom?: () => void;
+  deleteRoomLoading?: boolean;
   forcedTab?: Tab;
   onTabChange?: (tab: Tab) => void;
   hideTabBar?: boolean;
@@ -355,6 +359,39 @@ function UsersTab({
   Props,
   "isAdmin" | "participantId" | "participants" | "onKick" | "onBan" | "onMute" | "onGatherAll"
 >) {
+  const { user } = useAuth();
+  const [relations, setRelations] = useState<Record<string, ParticipantRelation>>({});
+
+  const usernamesKey = useMemo(
+    () =>
+      participants
+        .filter((p) => p.username && !p.is_guest && p.id !== participantId)
+        .map((p) => p.username!)
+        .sort()
+        .join(","),
+    [participantId, participants],
+  );
+
+  useEffect(() => {
+    if (!user || !usernamesKey) {
+      setRelations({});
+      return;
+    }
+    let cancelled = false;
+    apiFetch<Record<string, ParticipantRelation>>(
+      `/profile/relations?usernames=${encodeURIComponent(usernamesKey)}`,
+    )
+      .then((data) => {
+        if (!cancelled) {setRelations(data);}
+      })
+      .catch(() => {
+        if (!cancelled) {setRelations({});}
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, usernamesKey]);
+
   return (
     <div className="space-y-2 text-sm">
       {isAdmin && (
@@ -373,6 +410,10 @@ function UsersTab({
             participant={p}
             participantId={participantId}
             isAdmin={isAdmin}
+            relation={p.username ? relations[p.username] ?? null : null}
+            onRelationChange={(username, relation) =>
+              setRelations((prev) => ({ ...prev, [username]: relation }))
+            }
             onKick={onKick}
             onBan={onBan}
             onMute={onMute}
@@ -388,12 +429,23 @@ function AdminTab({
   roomTags = [],
   roomIsPrivate = false,
   onUpdateRoom,
-}: Pick<Props, "roomName" | "roomTags" | "roomIsPrivate" | "onUpdateRoom">) {
+  onDeleteRoom,
+  deleteRoomLoading = false,
+}: Pick<
+  Props,
+  | "roomName"
+  | "roomTags"
+  | "roomIsPrivate"
+  | "onUpdateRoom"
+  | "onDeleteRoom"
+  | "deleteRoomLoading"
+>) {
   const tagsLabel = roomTags.join(", ");
   const [editName, setEditName] = useState(roomName);
   const [editTags, setEditTags] = useState(tagsLabel);
   const [editPrivate, setEditPrivate] = useState(roomIsPrivate);
   const [saved, setSaved] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => {
     setEditName(roomName);
@@ -439,9 +491,9 @@ function AdminTab({
             className="mt-0.5 h-4 w-4 shrink-0 accent-fastwatch-accent"
           />
           <span>
-            <span className="block font-medium">Приватная комната</span>
+            <span className="block font-medium">Скрытая комната</span>
             <span className="text-xs text-fastwatch-muted">
-              Не отображается в списке открытых комнат. Доступ по ссылке.
+              Не отображается в каталоге. Для входа нужен аккаунт и ссылка.
             </span>
           </span>
         </label>
@@ -462,7 +514,46 @@ function AdminTab({
         <p className="mb-2 font-medium">💡 Панель администратора</p>
         <p>• Меняйте название, теги и приватность комнаты</p>
         <p className="mt-1">• Изменения видны всем участникам в чате</p>
+        <p className="mt-1">• Пустая комната без входов удаляется через 1 час</p>
       </div>
+
+      {onDeleteRoom && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+          {!confirmDelete ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              className="w-full rounded-lg border border-red-500/40 px-3 py-2 text-sm font-medium text-red-200 hover:bg-red-500/10"
+            >
+              Закрыть комнату
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-red-100">
+                Комната будет удалена без восстановления. Все участники будут отключены.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={deleteRoomLoading}
+                  onClick={onDeleteRoom}
+                  className="flex-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteRoomLoading ? "..." : "Подтвердить"}
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteRoomLoading}
+                  onClick={() => setConfirmDelete(false)}
+                  className="rounded-lg border border-white/10 px-3 py-2 text-xs hover:bg-white/5"
+                >
+                  Отмена
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

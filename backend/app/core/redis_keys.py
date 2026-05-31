@@ -40,3 +40,7 @@ def ws_session_key(token: str) -> str:
 
 def user_presence_key(user_id: str) -> str:
     return f"user:{user_id}:presence"
+
+
+def ws_control_channel_key() -> str:
+    return "ws:control:channel"

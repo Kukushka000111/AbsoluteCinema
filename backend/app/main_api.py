@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.core.redis_client import close_redis, init_redis
 from app.services.global_ban_service import promote_configured_global_admins
+from app.services.room_cleanup_service import start_inactive_room_cleanup
 
 
 @asynccontextmanager
@@ -18,8 +20,16 @@ async def lifespan(_app: FastAPI):
     await init_redis()
     async with async_session_factory() as session:
         await promote_configured_global_admins(session)
-    yield
-    await close_redis()
+    cleanup_task = start_inactive_room_cleanup()
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        try:
+            await cleanup_task
+        except asyncio.CancelledError:
+            pass
+        await close_redis()
 
 
 settings = get_settings()

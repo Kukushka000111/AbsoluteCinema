@@ -17,7 +17,7 @@ export function saveRoomSession(roomId: string, join: JoinRoomResponse): RoomSes
     displayName: join.display_name,
     isAdmin: join.is_admin,
     isGuest: join.is_guest,
-    wsToken: join.ws_token,
+    joined: true,
     playerState: join.player_state,
   };
   sessionStorage.setItem(key(roomId), JSON.stringify(session));
@@ -47,7 +47,11 @@ export function loadRoomSession(roomId: string): RoomSession | null {
   const raw = sessionStorage.getItem(key(roomId));
   if (!raw) {return null;}
   try {
-    return JSON.parse(raw) as RoomSession;
+    const session = JSON.parse(raw) as RoomSession & { wsToken?: string };
+    if (!session.joined && session.wsToken) {
+      session.joined = true;
+    }
+    return session;
   } catch {
     return null;
   }

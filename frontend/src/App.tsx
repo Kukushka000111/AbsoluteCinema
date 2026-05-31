@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider } from "./context/AuthContext";
 import { ToastProvider } from "./context/ToastContext";
@@ -12,6 +12,7 @@ import RoomPage from "./pages/RoomPage";
 import ProfilePage from "./pages/ProfilePage";
 import EditProfilePage from "./pages/EditProfilePage";
 import AdminPage from "./pages/AdminPage";
+import NotFoundPage from "./pages/NotFoundPage";
 
 export default function App() {
   return (
@@ -30,7 +31,7 @@ export default function App() {
               <Route path="/profile/:username" element={<ProfilePage />} />
               <Route path="/room/:roomId" element={<RoomPage />} />
               <Route path="/rooms/:roomId/history" element={<RoomHistoryPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
             </Layout>
           </AuthProvider>

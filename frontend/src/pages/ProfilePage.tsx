@@ -33,7 +33,7 @@ export default function ProfilePage() {
     setProfile(data);
     if (data.is_own_profile) {
       const [rooms, history] = await Promise.all([
-        apiFetch<RoomPublic[]>("/profile/me/rooms"),
+        apiFetch<RoomPublic[]>("/rooms/mine"),
         apiFetch<WatchHistoryEntry[]>("/profile/me/watch-history"),
       ]);
       setMyRooms(rooms);

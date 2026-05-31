@@ -14,7 +14,7 @@ export default function GuestOnlyGate({ page, children }: Props & { children: Re
   }
 
   if (user) {
-    const pageLabel = page === "login" ? "вход" : "регистрацию";
+    const pageLabel = page === "login" ? "входа" : "регистрации";
     return (
       <div className="flex min-h-[calc(100vh-200px)] items-center justify-center p-4">
         <div className="w-full max-w-md rounded-2xl border border-fastwatch-accent/30 bg-fastwatch-panel p-8 text-center shadow-xl">

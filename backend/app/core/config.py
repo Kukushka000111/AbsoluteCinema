@@ -32,6 +32,16 @@ class Settings(BaseSettings):
     jwt_cookie_name: str = Field(
         default="fastwatch_access_token", alias="JWT_COOKIE_NAME"
     )
+    ws_session_cookie_name: str = Field(
+        default="fastwatch_ws_token", alias="WS_SESSION_COOKIE_NAME"
+    )
+    max_rooms_per_user: int = Field(default=3, alias="MAX_ROOMS_PER_USER")
+    room_inactivity_ttl_seconds: int = Field(
+        default=3600, alias="ROOM_INACTIVITY_TTL_SECONDS"
+    )
+    room_cleanup_interval_seconds: int = Field(
+        default=300, alias="ROOM_CLEANUP_INTERVAL_SECONDS"
+    )
     cookie_secure: bool = Field(default=False, alias="COOKIE_SECURE")
     ws_session_ttl_seconds: int = Field(default=86400, alias="WS_SESSION_TTL_SECONDS")
     internal_api_key: str = Field(default="dev-internal-key", alias="INTERNAL_API_KEY")

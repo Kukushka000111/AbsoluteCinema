@@ -10,6 +10,7 @@ from app.models.room_history import RoomHistory
 from app.models.user import User
 from redis.asyncio import Redis
 
+from app.core.config import get_settings
 from app.services.redis_room_service import (
     delete_room_redis,
     get_online_count,
@@ -37,6 +38,13 @@ async def _generate_unique_room_id(session: AsyncSession) -> str:
     )
 
 
+async def count_admin_rooms(session: AsyncSession, admin_id: uuid.UUID) -> int:
+    result = await session.execute(
+        select(func.count()).select_from(Room).where(Room.admin_id == admin_id)
+    )
+    return int(result.scalar_one())
+
+
 async def create_room(
     session: AsyncSession,
     redis: Redis,
@@ -46,6 +54,15 @@ async def create_room(
     is_private: bool,
     tags: list[str],
 ) -> Room:
+    settings = get_settings()
+    owned = await count_admin_rooms(session, admin.id)
+    if owned >= settings.max_rooms_per_user:
+        raise RoomError(
+            f"Можно создать не более {settings.max_rooms_per_user} комнат",
+            "room_limit",
+            403,
+        )
+
     room_id = await _generate_unique_room_id(session)
     normalized_tags = [t.strip().lower() for t in tags if t.strip()][:10]
     room_name = name.strip() if name and name.strip() else f"Комната {room_id}"
@@ -112,6 +129,14 @@ async def delete_room(
     if room.admin_id != admin.id and not admin.is_global_admin:
         raise RoomError("Только админ может удалить комнату", "forbidden", 403)
 
+    await force_delete_room(session, redis, room)
+
+
+async def force_delete_room(
+    session: AsyncSession,
+    redis: Redis,
+    room: Room,
+) -> None:
     await delete_room_redis(redis, room.id)
     await session.delete(room)
 

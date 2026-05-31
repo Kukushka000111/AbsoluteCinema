@@ -1,121 +1,108 @@
-from fastapi import APIRouter, HTTPException, Query, Response, status
-
-from app.api.deps import CurrentUser, DbSession
-from app.core.config import get_settings
-from app.core.security import create_access_token
-from app.schemas.auth import (
-    AuthAvailabilityResponse,
-    AuthResponse,
-    GuestSessionResponse,
-    LoginRequest,
-    RegisterRequest,
-    UserPublic,
-)
-from app.services.auth_service import (
-    AuthError,
-    authenticate_user,
-    check_registration_availability,
-    register_user,
-)
-from app.services.global_ban_service import build_user_public, sync_global_admin_for_user
-from app.utils.slug import generate_guest_display_name, generate_guest_id
-
-router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _set_auth_cookie(response: Response, token: str) -> None:
-    settings = get_settings()
-    response.set_cookie(
-        key=settings.jwt_cookie_name,
-        value=token,
-        httponly=True,
-        secure=settings.cookie_secure_effective,
-        samesite="lax",
-        max_age=settings.access_token_expire_minutes * 60,
-        path="/",
-    )
-
-
-def _clear_auth_cookie(response: Response) -> None:
-    settings = get_settings()
-    response.delete_cookie(
-        key=settings.jwt_cookie_name,
-        path="/",
-        httponly=True,
-        secure=settings.cookie_secure_effective,
-        samesite="lax",
-    )
-
-
-@router.post(
-    "/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
-)
-async def register(
-    payload: RegisterRequest, response: Response, session: DbSession
-) -> AuthResponse:
-    try:
-        user = await register_user(
-            session, payload.username, payload.email, payload.password
-        )
-        user = await sync_global_admin_for_user(session, user)
-    except AuthError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=exc.message
-        ) from exc
-
-    token = create_access_token(user.id, user.username)
-    _set_auth_cookie(response, token)
-    user_data = await build_user_public(session, user)
-    return AuthResponse(user=UserPublic.model_validate(user_data), message="registered")
-
-
-@router.get("/availability", response_model=AuthAvailabilityResponse)
-async def check_availability(
-    session: DbSession,
-    username: str | None = Query(default=None),
-    email: str | None = Query(default=None),
-) -> AuthAvailabilityResponse:
-    data = await check_registration_availability(
-        session, username=username, email=email
-    )
-    return AuthAvailabilityResponse.model_validate(data)
-
-
-@router.post("/login", response_model=AuthResponse)
-async def login(
-    payload: LoginRequest, response: Response, session: DbSession
-) -> AuthResponse:
-    try:
-        user = await authenticate_user(session, payload.username, payload.password)
-        user = await sync_global_admin_for_user(session, user)
-    except AuthError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message
-        ) from exc
-
-    token = create_access_token(user.id, user.username)
-    _set_auth_cookie(response, token)
-    user_data = await build_user_public(session, user)
-    return AuthResponse(user=UserPublic.model_validate(user_data), message="logged_in")
-
-
-@router.post("/logout")
-async def logout(response: Response) -> dict[str, str]:
-    _clear_auth_cookie(response)
-    return {"message": "logged_out"}
-
-
-@router.get("/me", response_model=UserPublic)
-async def me(current_user: CurrentUser, session: DbSession) -> UserPublic:
-    user = await sync_global_admin_for_user(session, current_user)
-    user_data = await build_user_public(session, user)
-    return UserPublic.model_validate(user_data)
-
-
-@router.post("/guest", response_model=GuestSessionResponse)
-async def create_guest_session() -> GuestSessionResponse:
-    """Гость не сохраняется в PostgreSQL; id и имя — для localStorage на фронте."""
-    return GuestSessionResponse(
-        guest_id=generate_guest_id(),
-        display_name=generate_guest_display_name(),
-    )
+from fastapi import APIRouter, HTTPException, Query, Response, status
+
+from app.api.deps import CurrentUser, DbSession
+from app.core.cookies import clear_auth_cookies, set_auth_cookie
+from app.core.security import create_access_token
+from app.schemas.auth import (
+    AuthAvailabilityResponse,
+    AuthResponse,
+    GuestSessionResponse,
+    LoginRequest,
+    RegisterRequest,
+    UserPublic,
+)
+from app.services.auth_service import (
+    AuthError,
+    authenticate_user,
+    check_registration_availability,
+    register_user,
+)
+from app.services.global_ban_service import (
+    build_user_public,
+    is_globally_banned,
+    sync_global_admin_for_user,
+)
+from app.utils.slug import generate_guest_display_name, generate_guest_id
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post(
+    "/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+)
+async def register(
+    payload: RegisterRequest, response: Response, session: DbSession
+) -> AuthResponse:
+    try:
+        user = await register_user(
+            session, payload.username, payload.email, payload.password
+        )
+        user = await sync_global_admin_for_user(session, user)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=exc.message
+        ) from exc
+
+    token = create_access_token(user.id, user.username)
+    set_auth_cookie(response, token)
+    user_data = await build_user_public(session, user)
+    return AuthResponse(user=UserPublic.model_validate(user_data), message="registered")
+
+
+@router.get("/availability", response_model=AuthAvailabilityResponse)
+async def check_availability(
+    session: DbSession,
+    username: str | None = Query(default=None),
+    email: str | None = Query(default=None),
+) -> AuthAvailabilityResponse:
+    data = await check_registration_availability(
+        session, username=username, email=email
+    )
+    return AuthAvailabilityResponse.model_validate(data)
+
+
+@router.post("/login", response_model=AuthResponse)
+async def login(
+    payload: LoginRequest, response: Response, session: DbSession
+) -> AuthResponse:
+    try:
+        user = await authenticate_user(session, payload.username, payload.password)
+        user = await sync_global_admin_for_user(session, user)
+    except AuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message
+        ) from exc
+
+    if await is_globally_banned(session, user.id):
+        clear_auth_cookies(response)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ваш аккаунт заблокирован на сайте",
+        )
+
+    token = create_access_token(user.id, user.username)
+    set_auth_cookie(response, token)
+    user_data = await build_user_public(session, user)
+    return AuthResponse(user=UserPublic.model_validate(user_data), message="logged_in")
+
+
+@router.post("/logout")
+async def logout(response: Response) -> dict[str, str]:
+    clear_auth_cookies(response)
+    return {"message": "logged_out"}
+
+
+@router.get("/me", response_model=UserPublic)
+async def me(current_user: CurrentUser, session: DbSession) -> UserPublic:
+    user = await sync_global_admin_for_user(session, current_user)
+    user_data = await build_user_public(session, user)
+    return UserPublic.model_validate(user_data)
+
+
+@router.post("/guest", response_model=GuestSessionResponse)
+async def create_guest_session() -> GuestSessionResponse:
+    """Гость не сохраняется в PostgreSQL; id и имя — для localStorage на фронте."""
+    return GuestSessionResponse(
+        guest_id=generate_guest_id(),
+        display_name=generate_guest_display_name(),
+    )

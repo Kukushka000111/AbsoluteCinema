@@ -9,18 +9,22 @@ export type WsMessage = {
 type Handler = (msg: WsMessage) => void;
 
 const MAX_RECONNECT_DELAY_MS = 10_000;
+const WS_AUTH_FAILURE_CODE = 1008;
 
 export function useRoomSocket(
   roomId: string | undefined,
-  wsToken: string | undefined,
+  ready: boolean,
   onMessage: Handler,
+  onSessionExpired?: () => void,
 ) {
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const handlerRef = useRef(onMessage);
+  const onSessionExpiredRef = useRef(onSessionExpired);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<number | null>(null);
   handlerRef.current = onMessage;
+  onSessionExpiredRef.current = onSessionExpired;
 
   const send = useCallback((type: string, payload: Record<string, unknown>): boolean => {
     const ws = wsRef.current;
@@ -32,7 +36,7 @@ export function useRoomSocket(
   }, []);
 
   useEffect(() => {
-    if (!roomId || !wsToken) {return;}
+    if (!roomId || !ready) {return;}
 
     let cancelled = false;
 
@@ -50,7 +54,7 @@ export function useRoomSocket(
       wsRef.current?.close();
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${protocol}//${window.location.host}/ws/rooms/${roomId}?token=${encodeURIComponent(wsToken)}`;
+      const url = `${protocol}//${window.location.host}/ws/rooms/${roomId}`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -59,9 +63,21 @@ export function useRoomSocket(
         setConnected(true);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setConnected(false);
         if (cancelled) {return;}
+
+        const authFailure =
+          event.code === WS_AUTH_FAILURE_CODE &&
+          (event.reason === "invalid_token" ||
+            event.reason === "missing_token" ||
+            event.reason === "banned");
+
+        if (authFailure) {
+          onSessionExpiredRef.current?.();
+          return;
+        }
+
         const delay = Math.min(
           1000 * 2 ** reconnectAttemptRef.current,
           MAX_RECONNECT_DELAY_MS,
@@ -91,7 +107,7 @@ export function useRoomSocket(
       wsRef.current = null;
       setConnected(false);
     };
-  }, [roomId, wsToken]);
+  }, [roomId, ready]);
 
   return { connected, send };
 }

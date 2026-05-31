@@ -87,6 +87,11 @@ export default function RegisterPage() {
     password === passwordRepeat &&
     !usernameError &&
     !emailError &&
+    !passwordError &&
+    !repeatError &&
+    availability !== null &&
+    availability.username_available &&
+    availability.email_available &&
     !checking &&
     !loading;
 

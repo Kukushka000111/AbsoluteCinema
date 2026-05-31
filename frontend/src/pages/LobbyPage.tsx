@@ -7,15 +7,19 @@ import { useToast } from "../context/ToastContext";
 import { joinRoomById } from "../lib/joinRoom";
 import { roomPath } from "../lib/links";
 
+const MAX_ROOMS_PER_USER = 3;
+
 export default function LobbyPage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const isBanned = Boolean(user?.is_globally_banned);
   const [myRooms, setMyRooms] = useState<RoomPublic[]>([]);
   const [loading, setLoading] = useState(true);
   const [createTags, setCreateTags] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const atRoomLimit = myRooms.length >= MAX_ROOMS_PER_USER;
 
   const loadMyRooms = useCallback(async () => {
     if (!user || user.is_globally_banned) {
@@ -52,7 +56,7 @@ export default function LobbyPage() {
       setCreateTags("");
       setIsPrivate(false);
       setShowCreateForm(false);
-      toast(isPrivate ? "Приватная комната создана" : "Комната создана", "success");
+      toast(isPrivate ? "Скрытая комната создана" : "Комната создана", "success");
       navigate(roomPath(room.id));
     } catch (err) {
       toast(err instanceof Error ? err.message : "Не удалось создать комнату", "error");
@@ -101,6 +105,7 @@ export default function LobbyPage() {
             Создайте комнату, добавьте ссылку и смотрите синхронно с чатом.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            {!isBanned && !atRoomLimit && (
             <button
               type="button"
               onClick={handleQuickCreate}
@@ -108,7 +113,8 @@ export default function LobbyPage() {
             >
               Создать комнату
             </button>
-            {user && (
+            )}
+            {user && !isBanned && !atRoomLimit && (
               <button
                 type="button"
                 onClick={() => setShowCreateForm((value) => !value)}
@@ -121,7 +127,20 @@ export default function LobbyPage() {
         </div>
       </section>
 
-      {user && showCreateForm && (
+      {isBanned && (
+        <section className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+          Ваш аккаунт заблокирован на сайте. Создание комнат недоступно.
+        </section>
+      )}
+
+      {user && !isBanned && atRoomLimit && (
+        <section className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+          Достигнут лимит: не более {MAX_ROOMS_PER_USER} комнат на пользователя. Закройте одну из
+          существующих, чтобы создать новую.
+        </section>
+      )}
+
+      {user && !isBanned && showCreateForm && (
         <section className="rounded-xl border border-fastwatch-accent/30 bg-fastwatch-panel p-6 sm:p-8">
           <h2 className="mb-6 text-xl font-bold">Создать новую комнату</h2>
           <form onSubmit={handleCreateRoom} className="grid gap-4 sm:grid-cols-2">
@@ -138,7 +157,7 @@ export default function LobbyPage() {
                 onChange={(e) => setIsPrivate(e.target.checked)}
                 className="h-4 w-4"
               />
-              Приватная комната
+              Скрытая комната (не в каталоге)
             </label>
             <div className="flex gap-3 sm:col-span-2">
               <button
@@ -159,9 +178,14 @@ export default function LobbyPage() {
         </section>
       )}
 
-      {user && (
+      {user && !isBanned && (
         <section>
-          <h2 className="mb-6 text-2xl font-bold">Мои комнаты</h2>
+          <h2 className="mb-6 text-2xl font-bold">
+            Мои комнаты
+            <span className="ml-2 text-base font-normal text-fastwatch-muted">
+              ({myRooms.length}/{MAX_ROOMS_PER_USER})
+            </span>
+          </h2>
           {loading ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {[1, 2, 3].map((i) => (

@@ -9,8 +9,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-fastwatch}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fastwatch} -d ${POSTGRES_DB:-fastwatch}"]
       interval: 5s
@@ -24,8 +22,6 @@ services:
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -47,8 +43,6 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     volumes:
       - ./backend:/app
-    ports:
-      - "${API_PORT:-8000}:8000"
     depends_on:
       postgres:
         condition: service_healthy

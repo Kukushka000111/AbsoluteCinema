@@ -75,6 +75,11 @@ class BlockStatus(BaseModel):
     is_blocked: bool
 
 
+class ProfileRelationStatus(BaseModel):
+    is_following: bool = False
+    is_blocked: bool = False
+
+
 class WatchHistoryEntry(RoomHistoryItem):
     room_id: str
     room_name: str

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.deps import ActiveUser, CurrentUser, DbSession, OptionalAuth, RedisDep
 from app.schemas.profile import (
@@ -6,6 +6,7 @@ from app.schemas.profile import (
     FollowStatus,
     ProfileMe,
     ProfilePublic,
+    ProfileRelationStatus,
     ProfileUpdate,
     WatchHistoryEntry,
 )
@@ -16,6 +17,7 @@ from app.services.profile_service import (
     build_profile_me,
     build_public_profile,
     follow_user,
+    get_profile_relations_batch,
     get_user_by_username_or_404,
     get_user_watch_history,
     unblock_user,
@@ -84,6 +86,20 @@ async def get_my_watch_history(
 ) -> list[WatchHistoryEntry]:
     entries = await get_user_watch_history(session, current_user.id)
     return [WatchHistoryEntry.model_validate(e) for e in entries]
+
+
+@router.get("/relations", response_model=dict[str, ProfileRelationStatus])
+async def get_profile_relations(
+    session: DbSession,
+    current_user: ActiveUser,
+    usernames: str = Query(..., min_length=1),
+) -> dict[str, ProfileRelationStatus]:
+    names = [part.strip() for part in usernames.split(",") if part.strip()]
+    relations = await get_profile_relations_batch(session, current_user, names)
+    return {
+        username: ProfileRelationStatus.model_validate(status)
+        for username, status in relations.items()
+    }
 
 
 @router.get("/{username}", response_model=ProfilePublic)

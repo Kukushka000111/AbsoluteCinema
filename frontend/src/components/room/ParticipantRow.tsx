@@ -1,15 +1,22 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { apiFetch, type ProfilePublic } from "../../api/client";
+import { apiFetch } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { profilePath } from "../../lib/links";
 import type { Participant } from "../../types/room";
 
+export type ParticipantRelation = {
+  is_following: boolean;
+  is_blocked: boolean;
+};
+
 type Props = {
   participant: Participant;
   participantId: string;
   isAdmin: boolean;
+  relation?: ParticipantRelation | null;
+  onRelationChange?: (username: string, relation: ParticipantRelation) => void;
   onKick: (targetId: string) => void;
   onBan: (targetId: string) => void;
   onMute: (targetId: string, mute: boolean) => void;
@@ -19,6 +26,8 @@ export default function ParticipantRow({
   participant: p,
   participantId,
   isAdmin,
+  relation = null,
+  onRelationChange,
   onKick,
   onBan,
   onMute,
@@ -27,26 +36,11 @@ export default function ParticipantRow({
   const { toast } = useToast();
   const isSelf = p.id === participantId;
   const canProfile = Boolean(p.username && !p.is_guest);
-  const [isFollowing, setIsFollowing] = useState<boolean | null>(null);
   const [followLoading, setFollowLoading] = useState(false);
+  const [blockLoading, setBlockLoading] = useState(false);
 
-  useEffect(() => {
-    if (!user || !p.username || isSelf) {
-      setIsFollowing(null);
-      return;
-    }
-    let cancelled = false;
-    apiFetch<ProfilePublic>(`/profile/${encodeURIComponent(p.username)}`)
-      .then((profile) => {
-        if (!cancelled) {setIsFollowing(profile.is_following);}
-      })
-      .catch(() => {
-        if (!cancelled) {setIsFollowing(false);}
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isSelf, p.username, user]);
+  const isFollowing = relation?.is_following ?? false;
+  const isBlocked = relation?.is_blocked ?? false;
 
   const follow = async () => {
     if (!user || !p.username) {return;}
@@ -57,7 +51,10 @@ export default function ParticipantRow({
         `/profile/${encodeURIComponent(p.username)}/follow`,
         { method },
       );
-      setIsFollowing(result.is_following);
+      onRelationChange?.(p.username, {
+        is_following: result.is_following,
+        is_blocked: isBlocked,
+      });
       toast(
         result.is_following ? `Вы подписались на ${p.username}` : `Вы отписались от ${p.username}`,
         "success",
@@ -69,13 +66,29 @@ export default function ParticipantRow({
     }
   };
 
-  const block = async () => {
+  const toggleBlock = async () => {
     if (!user || !p.username) {return;}
+    setBlockLoading(true);
     try {
-      await apiFetch(`/profile/${encodeURIComponent(p.username)}/block`, { method: "POST" });
-      toast(`${p.username} заблокирован — не сможет войти в ваши комнаты`, "success");
+      const method = isBlocked ? "DELETE" : "POST";
+      const result = await apiFetch<{ is_blocked: boolean }>(
+        `/profile/${encodeURIComponent(p.username)}/block`,
+        { method },
+      );
+      onRelationChange?.(p.username, {
+        is_following: isFollowing,
+        is_blocked: result.is_blocked,
+      });
+      toast(
+        result.is_blocked
+          ? `${p.username} заблокирован — не сможет войти в ваши комнаты`
+          : `${p.username} разблокирован`,
+        "success",
+      );
     } catch (err) {
       toast(err instanceof Error ? err.message : "Ошибка", "error");
+    } finally {
+      setBlockLoading(false);
     }
   };
 
@@ -96,6 +109,7 @@ export default function ParticipantRow({
           <p className="text-xs text-fastwatch-muted">
             {p.role}
             {p.is_muted ? " · 🔇 мут" : ""}
+            {isBlocked ? " · заблокирован" : ""}
           </p>
         </div>
       </div>
@@ -108,9 +122,14 @@ export default function ParticipantRow({
                 onClick={follow}
                 label={isFollowing ? "Отписаться" : "Подписаться"}
                 color="text-fastwatch-accent"
-                disabled={followLoading || isFollowing === null}
+                disabled={followLoading || relation === null || isBlocked}
               />
-              <ActionBtn onClick={block} label="Блок" color="text-orange-300" />
+              <ActionBtn
+                onClick={toggleBlock}
+                label={isBlocked ? "Разблок." : "Блок"}
+                color={isBlocked ? "text-emerald-300" : "text-orange-300"}
+                disabled={blockLoading || relation === null}
+              />
             </>
           )}
           {isAdmin && (

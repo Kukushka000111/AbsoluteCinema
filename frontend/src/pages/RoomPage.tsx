@@ -40,6 +40,7 @@ export default function RoomPage() {
   const [roomIsPrivate, setRoomIsPrivate] = useState(() => (roomId ? loadRoomMeta(roomId)?.isPrivate ?? false : false));
   const [loading, setLoading] = useState(!session);
   const [mobilePanel, setMobilePanel] = useState<RoomSidebarTab | null>(null);
+  const [deleteRoomLoading, setDeleteRoomLoading] = useState(false);
 
   const applyRoomMeta = useCallback(
     (meta: { name: string; tags: string[]; isPrivate: boolean }) => {
@@ -96,7 +97,7 @@ export default function RoomPage() {
 
   useEffect(() => {
     if (!roomId) {return;}
-    if (session?.wsToken) {
+    if (session?.joined) {
       setLoading(false);
       return;
     }
@@ -110,7 +111,21 @@ export default function RoomPage() {
       toast(message, "error");
       navigate("/");
     });
-  }, [roomId, session?.wsToken, ensureJoin, navigate, toast]);
+  }, [roomId, session?.joined, ensureJoin, navigate, toast]);
+
+  const handleSessionExpired = useCallback(() => {
+    if (!roomId) {return;}
+    removeRoomSession(roomId);
+    setSession(null);
+    setPlayerState(null);
+    setChat([]);
+    setLoading(true);
+    ensureJoin().catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : "Не удалось переподключиться";
+      toast(message, "error");
+      navigate("/");
+    });
+  }, [ensureJoin, navigate, roomId, toast]);
 
   useEffect(() => {
     if (authLoading || !roomId || !session || !session.isGuest || !user) {return;}
@@ -156,6 +171,25 @@ export default function RoomPage() {
           msg.type === "BANNED" ? "Вы забанены в этой комнате" : "Вас исключили из комнаты",
           "error",
         );
+        if (roomId) {removeRoomSession(roomId);}
+        navigate("/");
+        return;
+      }
+      if (msg.type === "ROOM_CLOSED") {
+        const reason = (msg.payload as { reason?: string } | undefined)?.reason;
+        toast(
+          reason === "inactive"
+            ? "Комната закрыта из-за неактивности (1 час без входов)"
+            : "Комната закрыта",
+          "error",
+        );
+        if (roomId) {removeRoomSession(roomId);}
+        navigate("/");
+        return;
+      }
+      if (msg.type === "GLOBALLY_BANNED") {
+        toast("Ваш аккаунт заблокирован на сайте", "error");
+        if (roomId) {removeRoomSession(roomId);}
         navigate("/");
         return;
       }
@@ -232,7 +266,12 @@ export default function RoomPage() {
     [applyRoomMeta, navigate, roomId, toast],
   );
 
-  const { connected, send } = useRoomSocket(roomId, session?.wsToken, handleWs);
+  const { connected, send } = useRoomSocket(
+    roomId,
+    Boolean(session?.joined),
+    handleWs,
+    handleSessionExpired,
+  );
 
   const wsSend = (type: string, payload: Record<string, unknown>) => {
     if (!send(type, payload)) {
@@ -303,6 +342,21 @@ export default function RoomPage() {
     }
   };
 
+  const handleDeleteRoom = async () => {
+    if (!roomId || !session.isAdmin) {return;}
+    setDeleteRoomLoading(true);
+    try {
+      await apiFetch(`/rooms/${roomId}`, { method: "DELETE" });
+      removeRoomSession(roomId);
+      toast("Комната закрыта", "success");
+      navigate("/");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Не удалось закрыть комнату", "error");
+    } finally {
+      setDeleteRoomLoading(false);
+    }
+  };
+
   const onlineCount = participants.length;
   const mobileTabs = session.isAdmin
     ? [...MOBILE_TABS, { id: "admin" as RoomSidebarTab, label: "Админ", icon: "⚙️" }]
@@ -339,6 +393,8 @@ export default function RoomPage() {
     roomTags,
     roomIsPrivate,
     onUpdateRoom: handleUpdateRoom,
+    onDeleteRoom: session.isAdmin ? handleDeleteRoom : undefined,
+    deleteRoomLoading,
   };
 
   return (
@@ -354,7 +410,7 @@ export default function RoomPage() {
             </h2>
             {roomIsPrivate && (
               <span className="shrink-0 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-medium text-amber-200 sm:text-xs">
-                Приватная
+                Скрытая
               </span>
             )}
           </div>

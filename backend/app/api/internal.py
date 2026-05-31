@@ -1,10 +1,11 @@
 import uuid
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.api.deps import DbSession, RedisDep
 from app.core.config import get_settings
+from app.core.internal_access import is_internal_client
 from app.services.history_service import record_video_started
 from app.services.moderation_service import ban_user_in_room
 from app.services.profile_service import record_room_visit
@@ -13,10 +14,18 @@ from app.services.room_service import RoomError
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 
-def _verify_internal_key(x_internal_key: str | None = Header(default=None)) -> None:
+def _verify_internal_access(
+    request: Request, x_internal_key: str | None = Header(default=None)
+) -> None:
     settings = get_settings()
     if not x_internal_key or x_internal_key != settings.internal_api_key:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    client_host = request.client.host if request.client else None
+    if not is_internal_client(client_host):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Internal API доступен только из внутренней сети",
+        )
 
 
 class HistoryRecordBody(BaseModel):
@@ -36,10 +45,11 @@ class RoomVisitBody(BaseModel):
 async def internal_record_history(
     room_id: str,
     body: HistoryRecordBody,
+    request: Request,
     session: DbSession,
     x_internal_key: str | None = Header(default=None),
 ) -> dict[str, str]:
-    _verify_internal_key(x_internal_key)
+    _verify_internal_access(request, x_internal_key)
     try:
         entry = await record_video_started(session, room_id, body.video_url, body.title)
     except RoomError as exc:
@@ -51,11 +61,12 @@ async def internal_record_history(
 async def internal_ban_user(
     room_id: str,
     body: BanRecordBody,
+    request: Request,
     session: DbSession,
     redis: RedisDep,
     x_internal_key: str | None = Header(default=None),
 ) -> dict[str, str]:
-    _verify_internal_key(x_internal_key)
+    _verify_internal_access(request, x_internal_key)
     try:
         target_id = uuid.UUID(body.user_id)
         ban = await ban_user_in_room(
@@ -77,10 +88,11 @@ async def internal_ban_user(
 async def internal_record_room_visit(
     user_id: str,
     body: RoomVisitBody,
+    request: Request,
     session: DbSession,
     x_internal_key: str | None = Header(default=None),
 ) -> dict[str, str]:
-    _verify_internal_key(x_internal_key)
+    _verify_internal_access(request, x_internal_key)
     try:
         uid = uuid.UUID(user_id)
     except ValueError as exc:

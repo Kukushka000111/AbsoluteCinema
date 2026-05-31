@@ -1,6 +1,8 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Response, status
 
 from app.api.deps import ActiveUser, DbSession, OptionalAuth, RedisDep
+from app.core.cookies import set_ws_session_cookie
+from app.services.ws_control_service import notify_room_closed
 from app.schemas.room import (
     BanUserRequest,
     JoinRoomRequest,
@@ -22,6 +24,7 @@ from app.services.redis_room_service import (
     hydrate_room_redis,
 )
 from app.ws.handlers import broadcast_room_update, broadcast_system
+from app.services.room_cleanup_service import touch_room_activity
 from app.services.room_service import (
     RoomError,
     build_room_public,
@@ -150,6 +153,7 @@ async def remove_room(
     try:
         room = await get_room_or_404(session, room_id)
         await delete_room(session, redis, room, current_user)
+        await notify_room_closed(redis, room_id)
     except RoomError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
@@ -178,6 +182,7 @@ async def room_history(
 @router.post("/{room_id}/join", response_model=JoinRoomResponse)
 async def join_room(
     room_id: str,
+    response: Response,
     session: DbSession,
     redis: RedisDep,
     auth: OptionalAuth,
@@ -188,7 +193,15 @@ async def join_room(
     except RoomError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
+    await touch_room_activity(session, room)
+
     body = body or JoinRoomRequest()
+
+    if room.is_private and auth.user is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Скрытая комната: войдите в аккаунт, чтобы присоединиться",
+        )
 
     if auth.user is not None:
         if await is_globally_banned(session, auth.user.id):
@@ -242,6 +255,8 @@ async def join_room(
 
     if auth.user is not None:
         await record_room_visit(session, auth.user.id, room_id)
+
+    set_ws_session_cookie(response, ws_token)
 
     return JoinRoomResponse(
         room=RoomPublic.model_validate(room_data),

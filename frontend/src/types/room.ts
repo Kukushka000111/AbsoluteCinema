@@ -25,7 +25,7 @@ export interface RoomSession {
   displayName: string;
   isAdmin: boolean;
   isGuest: boolean;
-  wsToken: string;
+  joined: boolean;
   playerState: PlayerState;
 }
 
